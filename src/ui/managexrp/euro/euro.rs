@@ -90,7 +90,7 @@ pub fn render_euro_balance(ui: &mut Ui) {
             ui.fonts(|f| f.layout_job(job))
         });
 
-        ui.add_space(20.0 * (available_width / 800.0).clamp(0.5, 1.0));
+        ui.add_space(20.0 * (available_width / 900.0).clamp(0.5, 1.0));
 
         // Balance and Trustline Info in Grid
         ui.horizontal(|ui| {
@@ -111,7 +111,7 @@ pub fn render_euro_balance(ui: &mut Ui) {
                     Grid::new("euro_details_grid")
                         .striped(true)
                         .num_columns(4)
-                        .spacing([10.0 * (available_width / 800.0).clamp(0.5, 1.0), 5.0])
+                        .spacing([10.0 * (available_width / 900.0).clamp(0.5, 1.0), 5.0])
                         .min_col_width(col_width)
                         .show(ui, |ui| {
                             // Header row
@@ -133,13 +133,11 @@ pub fn render_euro_balance(ui: &mut Ui) {
                                 .color(text_color)
                             );
                                ui.horizontal(|ui| {
-    let image_button = ui.add(
+    let _ = ui.add(
         SvgCanvas::paint_svg("europ.svg")
-            .fit_to_exact_size(egui::vec2(16.0 * (available_width / 800.0).clamp(0.5, 1.0), 16.0 * (available_width / 800.0).clamp(0.5, 1.0)))
-            .tint(text_color)
-            .sense(egui::Sense::click())
+            .fit_to_exact_size(egui::vec2(16.0 * (available_width / 900.0).clamp(0.5, 1.0), 16.0 * (available_width / 900.0).clamp(0.5, 1.0)))
     );
-    ui.add_space(4.0 * (available_width / 800.0).clamp(0.5, 1.0));
+    ui.add_space(4.0 * (available_width / 900.0).clamp(0.5, 1.0));
     ui.label(
         RichText::new(if hide_balance {
             "**** EUROP".to_string()
@@ -149,16 +147,7 @@ pub fn render_euro_balance(ui: &mut Ui) {
         .size(text_size)
         .color(text_color)
     )
-    .on_hover_text(if hide_balance { "Balance hidden for privacy" } else { "EUROP balance" });
-
-                                if image_button.clicked() {
-                                    let _ = xrp_modal_tx.send(XRPModalState {
-                                        import_wallet: None,
-                                        create_wallet: None,
-                                        view_type: ActiveView::InfoEuro,
-                                    });
-                                    ui.ctx().request_repaint();
-                                }
+    
                             });
                             ui.label(RichText::new(format!("€{:.2}", euro_rate)).size(text_size).color(text_color));
                             ui.end_row();
@@ -166,11 +155,11 @@ pub fn render_euro_balance(ui: &mut Ui) {
                 });
         });
 
-        ui.add_space(20.0 * (available_width / 800.0).clamp(0.5, 1.0));
+        ui.add_space(20.0 * (available_width / 900.0).clamp(0.5, 1.0));
 
         // Send/Receive Buttons
         ui.horizontal(|ui| {
-            ui.spacing_mut().item_spacing.x = 20.0 * (available_width / 800.0).clamp(0.5, 1.0);
+            ui.spacing_mut().item_spacing.x = 20.0 * (available_width / 900.0).clamp(0.5, 1.0);
             let text_size = (available_width * 0.03).clamp(20.0, 24.0);
             let send_text = RichText::new("↑")
                 .size(text_size)
@@ -216,7 +205,7 @@ pub fn render_euro_balance(ui: &mut Ui) {
             }
         });
 
-        ui.add_space(20.0 * (available_width / 800.0).clamp(0.5, 1.0));
+        ui.add_space(20.0 * (available_width / 900.0).clamp(0.5, 1.0));
 
         // Modify Trustline Link
         let text_size = (available_width * 0.02).clamp(14.0, 16.0);
@@ -243,6 +232,6 @@ pub fn render_euro_balance(ui: &mut Ui) {
             ui.ctx().request_repaint();
         }
 
-        ui.add_space(10.0 * (available_width / 800.0).clamp(0.5, 1.0));
+        ui.add_space(10.0 * (available_width / 900.0).clamp(0.5, 1.0));
     });
 }

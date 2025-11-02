@@ -1,7 +1,10 @@
+// btc import_wallet.rs (updated to handle JSON creation and channel update on response)
+
 use serde_json::{json, Value};
 use tokio_tungstenite::tungstenite::Message;
 use crate::ws::connection::ConnectionManager;
 use crate::channel::{CHANNEL, WSCommand, ProgressState};
+use crate::utils::json_storage; // ADDED: For json write
 
 pub async fn execute(
     connection: &mut ConnectionManager,
@@ -48,6 +51,20 @@ pub async fn process_response(message: Message, bitcoin_current_wallet: &str) ->
                 if wallet != bitcoin_current_wallet {
                     return Ok(());
                 }
+
+                // ADDED: Create JSON on confirmed response (using wallet from backend)
+                let wallet_data = json!({
+                    "address": wallet,
+                    "private_key_deleted": false
+                });
+                json_storage::write_json("btc.json", &wallet_data)
+                    .map_err(|e| {
+                        let _ = CHANNEL.progress_tx.send(Some(ProgressState {
+                            progress: 1.0,
+                            message: format!("{}: Failed to write btc.json: {}", FAILED, e),
+                        }));
+                        format!("{}: Failed to write btc.json: {}", FAILED, e)
+                    })?;
 
                 // Bitcoin-specific fields from NOWNodes response
                 let balance_btc = data

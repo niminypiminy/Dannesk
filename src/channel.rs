@@ -1,3 +1,4 @@
+// channel.rs (updated with settings_dropdown channels)
 use tokio::sync::watch;
 use std::collections::HashMap;
 use once_cell::sync::Lazy;
@@ -12,13 +13,6 @@ pub enum Tab {
     Balance,
     XRP,
     BTC,
-}
-
-// Startup data structure
-#[derive(Serialize, Deserialize, Clone)]
-pub struct StartupData {
-    pub private_key: Vec<u8>, // ED25519 seed (68 bytes)
-    pub public_key: Vec<u8>,  // ED25519 public key (32 bytes)
 }
 
 #[derive(Debug, Clone, Default)]
@@ -141,8 +135,6 @@ pub enum ActiveView {
     ReceiveEURO,
     TrustLineEURO,
     EnableEURO,
-    InfoEuro,
-    InfoRLUSD, 
 }
 
 #[derive(Debug, Clone, Default)]
@@ -229,8 +221,6 @@ pub struct Channel {
     pub theme_user_rx: watch::Receiver<(bool, String, bool)>,
     pub progress_tx: watch::Sender<Option<ProgressState>>,
     pub progress_rx: watch::Receiver<Option<ProgressState>>,
-    pub startup_tx: watch::Sender<Option<StartupData>>,
-    pub startup_rx: watch::Receiver<Option<StartupData>>,
     pub version_tx: watch::Sender<Option<String>>,
     pub version_rx: watch::Receiver<Option<String>>,
     pub exchange_ws_status_tx: watch::Sender<bool>,
@@ -239,7 +229,8 @@ pub struct Channel {
     pub crypto_ws_status_rx: watch::Receiver<bool>,
     pub update_url_tx: watch::Sender<Option<String>>, // New channel for update URL
     pub update_url_rx: watch::Receiver<Option<String>>, // New channel for update URL
-    
+    pub settings_dropdown_tx: watch::Sender<bool>,
+    pub settings_dropdown_rx: watch::Receiver<bool>,
  
 
     //rlusd channels
@@ -282,11 +273,11 @@ impl Channel {
         let (selected_tab_tx, selected_tab_rx) = watch::channel(Tab::Balance);
         let (modal_tx, modal_rx) = watch::channel(ModalState::default());
         let (progress_tx, progress_rx) = watch::channel(None);
-        let (startup_tx, startup_rx) = watch::channel(None);
         let (version_tx, version_rx) = watch::channel(None);
         let (exchange_ws_status_tx, exchange_ws_status_rx) = watch::channel(false);
         let (crypto_ws_status_tx, crypto_ws_status_rx) = watch::channel(false);
         let (update_url_tx, update_url_rx) = watch::channel(None); // Initialize new channel
+        let (settings_dropdown_tx, settings_dropdown_rx) = watch::channel(false);
 
 
 
@@ -326,8 +317,6 @@ impl Channel {
             modal_rx,
             progress_tx,
             progress_rx,
-            startup_tx,
-            startup_rx,
             version_tx,
             version_rx,
             exchange_ws_status_tx,
@@ -336,6 +325,8 @@ impl Channel {
             crypto_ws_status_rx,
             update_url_tx, 
             update_url_rx, 
+            settings_dropdown_tx,
+            settings_dropdown_rx,
          
 
 

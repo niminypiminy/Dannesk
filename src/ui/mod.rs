@@ -10,6 +10,6 @@ pub mod progressbar;
 pub mod exchange;
 pub mod name;
 pub mod update;
-pub mod banner;
+pub mod dropdown;
 
 

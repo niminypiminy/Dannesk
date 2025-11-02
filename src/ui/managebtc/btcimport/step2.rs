@@ -1,3 +1,5 @@
+// btcimport.rs (updated to defer JSON creation and channel update to response)
+
 use egui::{Ui, RichText, Color32, Frame, Margin};
 use bitcoin::bip32::{Xpriv, DerivationPath};
 use bitcoin::{Network, CompressedPublicKey};
@@ -77,7 +79,7 @@ pub fn render(ui: &mut Ui, import_state: &mut BTCImport, buffer_id: &str, comman
                     ui.ctx().request_repaint();
 
                     let modal_tx = btc_modal_tx.clone();
-                    let bitcoin_wallet_tx = crate::channel::CHANNEL.bitcoin_wallet_tx.clone();
+                    // REMOVED: bitcoin_wallet_tx clone (defer to response)
                     let progress_tx = crate::channel::CHANNEL.progress_tx.clone();
                     let buffer_id_clone = buffer_id.to_string();
                     let import_state_clone = import_state.clone();
@@ -114,28 +116,9 @@ pub fn render(ui: &mut Ui, import_state: &mut BTCImport, buffer_id: &str, comman
                                         entry.set_password(&sensitive_data)
                                             .expect("Failed to store in keyring");
 
-                                        // Save wallet data to file
-                                       let wallet_data = serde_json::json!({
-    "address": address.to_string(),
-    "private_key_deleted": false
-});
-json_storage::write_json("btc.json", &wallet_data)
-    .expect("Failed to write btc.json");
+                                        // REMOVED: json_storage::write_json (defer to response)
 
-                                        // Send wallet state
-                                        if let Err(e) = bitcoin_wallet_tx.send((0.0, Some(address.to_string()), false)) {
-                                            let _ = progress_tx.send(Some(ProgressState {
-                                                progress: 1.0,
-                                                message: format!("Error: Failed to update wallet state: {}", e),
-                                            }));
-                                            new_state.error = Some(format!("Failed to update wallet state: {}", e));
-                                            let _ = modal_tx.send(BTCModalState {
-                                                import_wallet: Some(new_state),
-                                                create_wallet: None,
-                                                view_type: BTCActiveView::BTC,
-                                            });
-                                            return;
-                                        }
+                                        // REMOVED: bitcoin_wallet_tx.send (defer to response)
 
                                         // Send WSCommand
                                         let command = WSCommand {
@@ -166,16 +149,16 @@ json_storage::write_json("btc.json", &wallet_data)
                                             return;
                                         }
 
+                                        println!("Sent import_bitcoin_wallet command for address: {}", address);
+                                        // Modal stays open; UI reacts to progress 1.0 success for close
                                         new_state.done = true;
                                         let _ = modal_tx.send(BTCModalState {
                                             import_wallet: Some(new_state),
                                             create_wallet: None,
                                             view_type: BTCActiveView::BTC,
                                         });
-                                        let _ = progress_tx.send(Some(ProgressState {
-                                            progress: 1.0,
-                                            message: "Wallet import complete".to_string(),
-                                        }));
+
+                                        // REMOVED: progress_tx.send progress 1.0 (defer to response)
                                     }
                                     Err(e) => {
                                         new_state.error = Some(format!("Encryption failed: {}", e));

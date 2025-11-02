@@ -1,15 +1,14 @@
-use egui::{Ui, Align, Visuals, Color32, RichText, Sense};
+use egui::{Ui, RichText};
 use chrono::{Local, Timelike};
 use crate::channel::{CHANNEL, Tab, WSCommand};
-use crate::ui::{balance, managexrp, managebtc, banner};
+use crate::ui::{balance, managexrp, managebtc, dropdown};
 use crate::ui::progressbar::ProgressBarState;
-use crate::utils::svg_render::SvgCanvas;
 use tokio::sync::mpsc;
 
 pub fn render_dashboard(ui: &mut Ui, commands_tx: mpsc::Sender<WSCommand>) -> Option<(bool, String, bool)> {
     let mut action = None;
 
-    let (is_dark_mode, user_name, hide_balance) = CHANNEL.theme_user_rx.borrow().clone();
+    let (is_dark_mode, user_name, _hide_balance) = CHANNEL.theme_user_rx.borrow().clone();
     let selected_tab = *CHANNEL.selected_tab_rx.borrow();
     let mut modal_state = CHANNEL.modal_rx.borrow().clone();
 
@@ -23,8 +22,8 @@ pub fn render_dashboard(ui: &mut Ui, commands_tx: mpsc::Sender<WSCommand>) -> Op
     let mut progress_bar = ProgressBarState::new("processing...".to_string());
 
     // Render progress bar first to prioritize overlay
-    if progress_bar.render_progress_bar(ui, 300.0) {
-        return None; 
+    if progress_bar.render_progress_bar(ui, 400.0) {
+        return None;
     }
 
     // Define text color based on theme
@@ -42,19 +41,16 @@ pub fn render_dashboard(ui: &mut Ui, commands_tx: mpsc::Sender<WSCommand>) -> Op
     };
 
     ui.vertical(|ui| {
-        // Render WebSocket banner if WebSockets are down
-        if modal_state.websocket {
-            banner::render_websocket_banner(ui);
-        }
-
-        // Scope for header with tabs, icons, and greeting
+        // Scope for header with tabs and greeting (center icons removed)
         ui.scope(|ui| {
             // Set button padding for consistent spacing
             ui.style_mut().spacing.button_padding = egui::vec2(10.0, 5.0);
 
             ui.horizontal(|ui| {
-                // Left side: Tabs (Balance, XRP, BTC)
+                // Left side: Tabs (Balance, XRP, BTC) + Settings dropdown
                 ui.horizontal(|ui| {
+                    let settings_label = RichText::new("Settings").color(tab_text_color.unwrap_or(ui.style().visuals.widgets.active.fg_stroke.color));
+
                     // Balance tab
                     if ui
                         .selectable_label(
@@ -87,106 +83,24 @@ pub fn render_dashboard(ui: &mut Ui, commands_tx: mpsc::Sender<WSCommand>) -> Op
                     {
                         let _ = CHANNEL.selected_tab_tx.send(Tab::BTC);
                     }
-                });
 
-                // Center: Icon buttons (theme toggle, settings, name, exchange, hide balance)
-                ui.with_layout(egui::Layout::centered_and_justified(egui::Direction::LeftToRight), |ui| {
-                    // Calculate available width and allocate space to center icons
-                    let available_width = ui.available_width();
-                    let icon_group_width = 120.0; // 5 icons (16.0 each) + 4 spaces (10.0 each) = 80 + 40 = 120
-                    ui.add_space(((available_width - icon_group_width) / 2.0) - 160.0); // Adjusted to shift left
+                    // Settings button (toggle)
+                    let settings_response = ui.selectable_label(false, settings_label);
+                    if settings_response.clicked() {
+                        let new_open = !*CHANNEL.settings_dropdown_rx.borrow();
+                        let _ = CHANNEL.settings_dropdown_tx.send(new_open);
+                    }
 
-                    ui.horizontal(|ui| {
-                        // Theme toggle button (Sun/Moon)
-                        let icon = if is_dark_mode { "☀" } else { "🌙" }; // Sun (U+2600), Moon (U+1F319)
-                        if ui.button(icon).clicked() {
-                            let new_dark_mode = !is_dark_mode;
-                            action = Some((new_dark_mode, user_name.clone(), hide_balance));
-                            ui.ctx().set_visuals(if new_dark_mode { Visuals::dark() } else { Visuals::light() });
-                        }
-
-                        ui.add_space(10.0);
-                        // Settings button (Pin icon)
-                        if ui
-                            .add(
-                                egui::Button::image(
-                                    SvgCanvas::paint_svg("pin.svg")
-                                        .fit_to_exact_size(egui::vec2(16.0, 16.0))
-                                        .tint(text_color),
-                                )
-                                .sense(Sense::click())
-                            )
-                            .clicked()
-                        {
-                            let mut new_state = CHANNEL.modal_rx.borrow().clone();
-                            new_state.settings = true;
-                            let _ = CHANNEL.modal_tx.send(new_state);
-                        }
-
-                        ui.add_space(10.0);
-                        // Name button (Unicode person icon)
-                        if ui
-                            .add(
-                                egui::Button::new(RichText::new("👤").size(15.0).color(text_color))
-                                    .sense(Sense::click())
-                            )
-                            .clicked()
-                        {
-                            let mut new_state = CHANNEL.modal_rx.borrow().clone();
-                            new_state.name = true;
-                            let _ = CHANNEL.modal_tx.send(new_state);
-                        }
-
-                        ui.add_space(10.0);
-                        // Exchange button (Exchange icon)
-                        if ui
-                            .add(
-                                egui::Button::image(
-                                    SvgCanvas::paint_svg("exchange.svg")
-                                        .fit_to_exact_size(egui::vec2(16.0, 16.0))
-                                        .tint(text_color),
-                                )
-                                .sense(Sense::click())
-                            )
-                            .clicked()
-                        {
-                            let mut new_state = CHANNEL.modal_rx.borrow().clone();
-                            new_state.exchange = true;
-                            let _ = CHANNEL.modal_tx.send(new_state);
-                        }
-
-                        ui.add_space(10.0);
-                        // Hide balance toggle button (Eyeball icons)
-                        let eye_icon = if hide_balance {
-                            SvgCanvas::paint_svg("hidden.svg")
-                        } else {
-                            SvgCanvas::paint_svg("nothidden.svg")
-                        };
-                        let lock_color = if hide_balance {
-                            Color32::from_rgb(180, 180, 180) // Gray when balance is hidden
-                        } else {
-                            text_color // Same color as other icons
-                        };
-                        if ui
-                            .add(
-                                egui::Button::image(
-                                    eye_icon
-                                        .fit_to_exact_size(egui::vec2(16.0, 16.0))
-                                        .tint(lock_color),
-                                )
-                                .sense(Sense::click())
-                            )
-                            .clicked()
-                        {
-                            let new_hide_balance = !hide_balance;
-                            action = Some((is_dark_mode, user_name.clone(), new_hide_balance));
-                        }
+                    // Store the button rect for positioning the area (temp data)
+                    ui.ctx().data_mut(|d| {
+                        d.insert_temp(egui::Id::new("settings_button_rect"), settings_response.rect);
                     });
                 });
 
-                // Right side: Greeting with non-clickable name
-                ui.with_layout(egui::Layout::right_to_left(Align::Center), |ui| {
-                    ui.add_space(10.0);
+                // Right side: Greeting with non-clickable name (WebSocket status indicator removed to avoid clutter)
+                // (Pushed to right with add_space)
+                ui.horizontal(|ui| {
+                    // Compute the greeting layout job and galley for width measurement
                     let now = Local::now().hour();
                     let greeting = match now {
                         5..=11 => "Good morning",
@@ -209,7 +123,17 @@ pub fn render_dashboard(ui: &mut Ui, commands_tx: mpsc::Sender<WSCommand>) -> Op
                         ..Default::default()
                     };
                     job.append(&user_name, 0.0, name_format);
-                    ui.add(egui::Label::new(ui.fonts(|f| f.layout_job(job))));
+                    let galley = ui.fonts(|f| f.layout_job(job));
+
+                    // Dimensions
+                    let greeting_width = galley.size().x;
+                    let margin_to_edge = 10.0;
+
+                    let elements_width = greeting_width;
+                    ui.add_space(ui.available_width() - elements_width - margin_to_edge);
+
+                    // Add greeting
+                    ui.add(egui::Label::new(galley));
                 });
             });
         });
@@ -226,6 +150,11 @@ pub fn render_dashboard(ui: &mut Ui, commands_tx: mpsc::Sender<WSCommand>) -> Op
         Tab::BTC => {
             managebtc::render_manage_btc(ui, commands_tx.clone());
         }
+    }
+
+    // Delegate dropdown rendering/actions to dropdown.rs (forward any action for caller)
+    if let Some(dropdown_action) = dropdown::render(ui.ctx()) {
+        action = Some(dropdown_action);
     }
 
     action

@@ -2,6 +2,7 @@ use serde_json::{json, Value};
 use tokio_tungstenite::tungstenite::Message;
 use crate::ws::connection::ConnectionManager;
 use crate::channel::{CHANNEL, WSCommand, ProgressState};
+use crate::utils::json_storage; // ADDED: For json write
 
 pub async fn execute(
     connection: &mut ConnectionManager,
@@ -10,7 +11,7 @@ pub async fn execute(
 ) -> Result<(), String> {
     static FAILED: &str = "Error: Wallet import failed";
     if let Some(wallet) = cmd.wallet.clone() {
-        *current_wallet = wallet.clone();
+        *current_wallet = wallet.clone(); // UNCHANGED: Keep for response matching
         let msg_json = json!({"command": "import_wallet", "wallet": wallet});
         connection
             .send(Message::Text(msg_json.to_string()))
@@ -49,6 +50,14 @@ pub async fn process_response(message: Message, current_wallet: &str) -> Result<
                     return Ok(());
                 }
 
+                // ADDED: Create JSON on confirmed response (using wallet from backend)
+                let wallet_data = json!({
+                    "address": wallet,
+                    "private_key_deleted": false
+                });
+                json_storage::write_json("xrp.json", &wallet_data)
+                    .map_err(|e| format!("{}: Failed to write xrp.json: {}", FAILED, e))?;
+
                 let balance_xrp = data
                     .get("balance")
                     .and_then(|b| b.as_str())
@@ -76,6 +85,8 @@ pub async fn process_response(message: Message, current_wallet: &str) -> Result<
                     .get("trustline_euro_limit")
                     .and_then(|l| l.as_str())
                     .and_then(|l| l.parse::<f64>().ok());
+
+                // UNCHANGED: Send balance updates (this sets the channel post-response)
 
                 // Send balance updates
                 let (_, _, _, private_key_deleted) = *CHANNEL.wallet_balance_rx.borrow();
@@ -112,7 +123,7 @@ pub async fn process_response(message: Message, current_wallet: &str) -> Result<
                         format!("Failed to send Euro balance: {}", e)
                     })?;
 
-                // Send completion signal
+                // UNCHANGED: Send completion signal (UI can close modal here)
                 CHANNEL
                     .progress_tx
                     .send(Some(ProgressState {

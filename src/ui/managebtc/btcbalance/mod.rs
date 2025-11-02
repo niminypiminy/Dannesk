@@ -111,7 +111,7 @@ pub fn render_btc_balance(ui: &mut Ui, commands_tx: mpsc::Sender<WSCommand>) {
             ui.fonts(|f| f.layout_job(job))
         });
 
-        ui.add_space(20.0 * (available_width / 800.0).clamp(0.5, 1.0));
+        ui.add_space(20.0 * (available_width / 900.0).clamp(0.5, 1.0));
 
         // Balance and Exchange Rate in Grid
 ui.horizontal(|ui| {
@@ -125,7 +125,7 @@ ui.horizontal(|ui| {
         .outer_margin(Margin {
             left: 15, // Match XRP's grid margin
             right: 0,
-            top: 0,
+            top: -20,
             bottom: 0,
         })
         .show(ui, |ui| {
@@ -134,7 +134,7 @@ ui.horizontal(|ui| {
             Grid::new("btc_details_grid")
                 .striped(true)
                 .num_columns(2)
-                .spacing([10.0 * (available_width / 800.0).clamp(0.5, 1.0), 5.0])
+                .spacing([10.0 * (available_width / 900.0).clamp(0.5, 1.0), 5.0])
                 .min_col_width(col_width)
                 .show(ui, |ui| {
                     // Header row
@@ -147,12 +147,11 @@ ui.horizontal(|ui| {
     ui.add(
         SvgCanvas::paint_svg("btc.svg")
             .fit_to_exact_size(egui::vec2(
-                16.0 * (available_width / 800.0).clamp(0.5, 1.0),
-                16.0 * (available_width / 1000.0).clamp(0.5, 1.0)
+                16.0 * (available_width / 900.0).clamp(0.5, 1.0),
+                16.0 * (available_width / 900.0).clamp(0.5, 1.0)
             ))
-            .tint(text_color),
     );
-    ui.add_space(4.0 * (available_width / 800.0).clamp(0.5, 1.0));
+    ui.add_space(4.0 * (available_width / 900.0).clamp(0.5, 1.0));
     ui.label(
         RichText::new(if hide_balance {
             "**** BTC".to_string()
@@ -178,11 +177,11 @@ ui.horizontal(|ui| {
                 });
         });
 });
-        ui.add_space(20.0 * (available_width / 800.0).clamp(0.5, 1.0));
+        ui.add_space(20.0 * (available_width / 900.0).clamp(0.5, 1.0));
 
         // Send/Receive Buttons
         ui.horizontal(|ui| {
-            ui.spacing_mut().item_spacing.x = 20.0 * (available_width / 800.0).clamp(0.5, 1.0);
+            ui.spacing_mut().item_spacing.x = 20.0 * (available_width / 900.0).clamp(0.5, 1.0);
             let text_size = (available_width * 0.03).clamp(20.0, 24.0);
             let send_text = RichText::new("↑")
                 .size(text_size)
@@ -228,11 +227,11 @@ ui.horizontal(|ui| {
             }
         });
 
-        ui.add_space(20.0 * (available_width / 800.0).clamp(0.5, 1.0));
+        ui.add_space(20.0 * (available_width / 900.0).clamp(0.5, 1.0));
 
         // Remove/Delete Links
         ui.horizontal(|ui| {
-            ui.spacing_mut().item_spacing.x = 30.0 * (available_width / 800.0).clamp(0.5, 1.0);
+            ui.spacing_mut().item_spacing.x = 30.0 * (available_width / 900.0).clamp(0.5, 1.0);
             let text_size = (available_width * 0.02).clamp(14.0, 16.0);
             let remove_text = RichText::new("Remove Wallet")
                 .size(text_size)
@@ -279,6 +278,6 @@ ui.horizontal(|ui| {
             }
         });
 
-        ui.add_space(10.0 * (available_width / 800.0).clamp(0.5, 1.0));
+        ui.add_space(10.0 * (available_width / 900.0).clamp(0.5, 1.0));
     });
 }

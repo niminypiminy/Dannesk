@@ -99,7 +99,7 @@ pub fn render_balance(ui: &mut Ui) {
                 }
                 ui.fonts(|f| f.layout_job(job))
             });
-            ui.add_space(20.0 * (available_width / 800.0).clamp(0.5, 1.0));
+            ui.add_space(20.0 * (available_width / 900.0).clamp(0.5, 1.0));
             ui.horizontal(|ui| {
                 // Dynamic grid width
                 let total_grid_width = (ui.available_width() * 0.8).min(400.0);
@@ -120,7 +120,7 @@ pub fn render_balance(ui: &mut Ui) {
                         Grid::new("balance_grid")
                             .striped(true)
                             .num_columns(3)
-                            .spacing([10.0 * (available_width / 800.0).clamp(0.5, 1.0), 5.0])
+                            .spacing([10.0 * (available_width / 900.0).clamp(0.5, 1.0), 5.0])
                             .min_col_width(col_width)
                             .show(ui, |ui| {
                                 let text_size = (available_width * 0.015).clamp(12.0, 14.0);
@@ -137,9 +137,9 @@ pub fn render_balance(ui: &mut Ui) {
                                         } else {
                                             "xrp_dark.svg"
                                         })
-                                        .fit_to_exact_size(egui::vec2(16.0 * (available_width / 800.0).clamp(0.5, 1.0), 16.0 * (available_width / 1000.0).clamp(0.5, 1.0))),
+                                        .fit_to_exact_size(egui::vec2(16.0 * (available_width / 900.0).clamp(0.5, 1.0), 16.0 * (available_width / 900.0).clamp(0.5, 1.0))),
                                     );
-                                    ui.add_space(4.0 * (available_width / 800.0).clamp(0.5, 1.0)); // Space between icon and text
+                                    ui.add_space(4.0 * (available_width / 900.0).clamp(0.5, 1.0)); // Space between icon and text
                                     ui.label(RichText::new("XRP").size(text_size).color(text_color));
                                 });
                                 ui.label(
@@ -159,9 +159,9 @@ pub fn render_balance(ui: &mut Ui) {
                                 ui.horizontal(|ui| {
                                     ui.add(
                                         SvgCanvas::paint_svg("btc.svg")
-                                            .fit_to_exact_size(egui::vec2(16.0 * (available_width / 800.0).clamp(0.5, 1.0), 16.0 * (available_width / 1000.0).clamp(0.5, 1.0))),
+                                            .fit_to_exact_size(egui::vec2(16.0 * (available_width / 900.0).clamp(0.5, 1.0), 16.0 * (available_width / 900.0).clamp(0.5, 1.0))),
                                     );
-                                    ui.add_space(4.0 * (available_width / 800.0).clamp(0.5, 1.0));
+                                    ui.add_space(4.0 * (available_width / 900.0).clamp(0.5, 1.0));
                                     ui.label(RichText::new("BTC").size(text_size).color(text_color));
                                 });
                                 ui.label(
@@ -181,7 +181,7 @@ pub fn render_balance(ui: &mut Ui) {
                                 ui.horizontal(|ui| {
                                     ui.add(
                                         SvgCanvas::paint_svg("rlusd.svg")
-                                            .fit_to_exact_size(egui::vec2(16.0 * (available_width / 800.0).clamp(0.5, 1.0), 16.0 * (available_width / 1000.0).clamp(0.5, 1.0))),
+                                            .fit_to_exact_size(egui::vec2(16.0 * (available_width / 900.0).clamp(0.5, 1.0), 16.0 * (available_width / 900.0).clamp(0.5, 1.0))),
                                     );
                                     ui.add_space(4.0 * (available_width / 800.0).clamp(0.5, 1.0));
                                     ui.label(RichText::new("RLUSD").size(text_size).color(text_color));
@@ -203,7 +203,7 @@ pub fn render_balance(ui: &mut Ui) {
                                 ui.horizontal(|ui| {
                                     ui.add(
                                         SvgCanvas::paint_svg("europ.svg")
-                                            .fit_to_exact_size(egui::vec2(16.0 * (available_width / 800.0).clamp(0.5, 1.0), 16.0 * (available_width / 1000.0).clamp(0.5, 1.0))),
+                                            .fit_to_exact_size(egui::vec2(16.0 * (available_width / 900.0).clamp(0.5, 1.0), 16.0 * (available_width / 900.0).clamp(0.5, 1.0))),
                                     );
                                     ui.add_space(4.0 * (available_width / 800.0).clamp(0.5, 1.0));
                                     ui.label(RichText::new("EUROP").size(text_size).color(text_color));

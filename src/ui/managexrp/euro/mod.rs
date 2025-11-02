@@ -8,7 +8,6 @@ pub mod shared_utils;
 pub mod receiveeuro;
 pub mod send;
 pub mod modify;
-pub mod sf;
 
 pub fn render_euro_balance(ui: &mut Ui, _commands_tx: mpsc::Sender<WSCommand>) {
     let euro_rx = CHANNEL.euro_rx.clone();

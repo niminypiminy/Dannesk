@@ -91,10 +91,9 @@ pub fn render(ui: &mut Ui, rates: &HashMap<String, f32>, text_color: Color32, is
                                             if let Some(xrp_usd) = rates.get("XRP/USD") {
                                                 ui.horizontal(|ui| {
                                                     ui.add(
-                                                        SvgCanvas::paint_svg(if is_dark_mode { "xrp_white.svg" } else { "xrp_dark.svg" })
-                                                            .fit_to_exact_size(egui::vec2(icon_size, icon_size))
-                                                            .tint(text_color),
-                                                    );
+    SvgCanvas::paint_svg(if is_dark_mode { "xrp_white.svg" } else { "xrp_dark.svg" })
+        .fit_to_exact_size(egui::vec2(icon_size, icon_size)),
+);
                                                     ui.add_space(5.0 * (available_width / 1000.0).clamp(0.5, 1.0));
                                                     ui.label(RichText::new("XRP/USD").size(text_size).color(text_color));
                                                 });
@@ -108,7 +107,7 @@ pub fn render(ui: &mut Ui, rates: &HashMap<String, f32>, text_color: Color32, is
                                                     ui.add(
                                                         SvgCanvas::paint_svg("btc.svg")
                                                             .fit_to_exact_size(egui::vec2(icon_size, icon_size))
-                                                            .tint(text_color),
+                                                            
                                                     );
                                                     ui.add_space(5.0 * (available_width / 1000.0).clamp(0.5, 1.0));
                                                     ui.label(RichText::new("BTC/USD").size(text_size).color(text_color));
@@ -123,7 +122,7 @@ pub fn render(ui: &mut Ui, rates: &HashMap<String, f32>, text_color: Color32, is
                                                     ui.add(
                                                         SvgCanvas::paint_svg("europ.svg")
                                                             .fit_to_exact_size(egui::vec2(icon_size, icon_size))
-                                                            .tint(text_color),
+                                                            
                                                     );
                                                     ui.add_space(5.0 * (available_width / 1000.0).clamp(0.5, 1.0));
                                                     ui.label(RichText::new("EUR/USD").size(text_size).color(text_color));
@@ -138,7 +137,7 @@ pub fn render(ui: &mut Ui, rates: &HashMap<String, f32>, text_color: Color32, is
                                                     ui.add(
                                                         SvgCanvas::paint_svg(if is_dark_mode { "xrp_white.svg" } else { "xrp_dark.svg" })
                                                             .fit_to_exact_size(egui::vec2(icon_size, icon_size))
-                                                            .tint(text_color),
+                                                          
                                                     );
                                                     ui.add_space(5.0 * (available_width / 1000.0).clamp(0.5, 1.0));
                                                     ui.label(RichText::new("XRP/EUR").size(text_size).color(text_color));
@@ -153,7 +152,6 @@ pub fn render(ui: &mut Ui, rates: &HashMap<String, f32>, text_color: Color32, is
                                                     ui.add(
                                                         SvgCanvas::paint_svg("btc.svg")
                                                             .fit_to_exact_size(egui::vec2(icon_size, icon_size))
-                                                            .tint(text_color),
                                                     );
                                                     ui.add_space(5.0 * (available_width / 1000.0).clamp(0.5, 1.0));
                                                     ui.label(RichText::new("BTC/EUR").size(text_size).color(text_color));
@@ -167,7 +165,6 @@ pub fn render(ui: &mut Ui, rates: &HashMap<String, f32>, text_color: Color32, is
                                                 ui.add(
                                                     SvgCanvas::paint_svg("rlusd.svg")
                                                         .fit_to_exact_size(egui::vec2(icon_size, icon_size))
-                                                        .tint(text_color),
                                                 );
                                                 ui.add_space(5.0 * (available_width / 1000.0).clamp(0.5, 1.0));
                                                 ui.label(RichText::new("RLUSD/USD").size(text_size).color(text_color));
@@ -180,7 +177,6 @@ pub fn render(ui: &mut Ui, rates: &HashMap<String, f32>, text_color: Color32, is
                                                 ui.add(
                                                     SvgCanvas::paint_svg("europ.svg")
                                                         .fit_to_exact_size(egui::vec2(icon_size, icon_size))
-                                                        .tint(text_color),
                                                 );
                                                 ui.add_space(5.0 * (available_width / 1000.0).clamp(0.5, 1.0));
                                                 ui.label(RichText::new("EUROP/EUR").size(text_size).color(text_color));

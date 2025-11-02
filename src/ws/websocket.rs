@@ -3,13 +3,13 @@ use tokio::sync::mpsc::Receiver;
 use tokio_tungstenite::tungstenite::Message;
 use crate::ws::connection::ConnectionManager;
 use crate::ws::commands::Command;
-use crate::channel::{CHANNEL, WSCommand};
+use crate::channel::{WSCommand};
 
 pub async fn run_crypto_websocket(
     mut commands_rx: Receiver<WSCommand>,
     mut shutdown_rx: Receiver<()>,
 ) -> Result<(), String> {
-    let mut connection = ConnectionManager::new(CHANNEL.startup_rx.clone());
+    let mut connection = ConnectionManager::new(); 
     let mut current_wallet = String::new();
     let mut bitcoin_current_wallet = String::new();
 
