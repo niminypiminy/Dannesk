@@ -6,7 +6,6 @@ use crate::channel::{XRPModalState, ProgressState, WSCommand, XRPImport, ActiveV
 use crate::encrypt::encrypt_data;
 use super::{buffers, styles};
 use zeroize::Zeroize;
-use crate::utils::json_storage;
 use tokio::sync::mpsc;
 
 pub fn render(ui: &mut Ui, import_state: &mut XRPImport, buffer_id: &str, commands_tx: mpsc::Sender<WSCommand>) {
@@ -70,7 +69,7 @@ pub fn render(ui: &mut Ui, import_state: &mut XRPImport, buffer_id: &str, comman
                     ui.ctx().request_repaint();
 
                     let modal_tx = xrp_modal_tx.clone();
-                    let wallet_balance_tx = crate::channel::CHANNEL.wallet_balance_tx.clone();
+                    // REMOVED: wallet_balance_tx clone (no longer used here)
                     let progress_tx = crate::channel::CHANNEL.progress_tx.clone();
                     let buffer_id_clone = buffer_id.to_string();
                     let import_state_clone = import_state.clone();
@@ -93,19 +92,9 @@ pub fn render(ui: &mut Ui, import_state: &mut XRPImport, buffer_id: &str, comman
                                         entry.set_password(&sensitive_data)
                                             .expect("Failed to store in keyring");
 
-                                       let wallet_data = serde_json::json!({
-    "address": wallet.classic_address,
-    "private_key_deleted": false
-});
-json_storage::write_json("xrp.json", &wallet_data)
-    .expect("Failed to write xrp.json");
+                                        // REMOVED: json_storage::write_json (defer to response)
 
-                                        let _ = wallet_balance_tx.send((
-                                            0.0,
-                                            Some(wallet.classic_address.clone()),
-                                            false,
-                                            false,
-                                        ));
+                                        // REMOVED: wallet_balance_tx.send (defer to response)
 
                                         let command = WSCommand {
                                             command: "import_wallet".to_string(),
@@ -124,20 +113,28 @@ json_storage::write_json("xrp.json", &wallet_data)
 
                                         if let Err(e) = commands_tx_clone.try_send(command) {
                                             println!("Failed to send import_wallet command: {}", e);
+                                            new_state.error = Some(format!("Failed to send command: {}", e)); // Set error for modal
+                                            let _ = modal_tx.send(XRPModalState {  // Send error modal
+                                                import_wallet: Some(new_state),
+                                                create_wallet: None,
+                                                view_type: ActiveView::XRP,
+                                            });
                                             let _ = progress_tx.send(Some(ProgressState {
                                                 progress: 1.0,
                                                 message: format!("Error: Failed to send command: {}", e),
                                             }));
                                         } else {
                                             println!("Sent import_wallet command for address: {}", wallet.classic_address);
+                                            // Modal stays open; UI reacts to progress 1.0 success for close
+                                            new_state.done = true;
+                                            let _ = modal_tx.send(XRPModalState {
+                                                import_wallet: Some(new_state),
+                                                create_wallet: None,
+                                                view_type: ActiveView::XRP,
+                                            });
                                         }
 
-                                        new_state.done = true;
-                                        let _ = modal_tx.send(XRPModalState {
-                                            import_wallet: Some(new_state),
-                                            create_wallet: None,
-                                            view_type: ActiveView::XRP,
-                                        });
+                                        // REMOVED: new_state.done = true; and modal_tx.send (defer to response or UI)
                                     }
                                     Err(e) => {
                                         new_state.error = Some(format!("Encryption failed: {}", e));

@@ -1,6 +1,7 @@
 use egui::{Ui, ProgressBar, Color32, Pos2, Rect, Vec2, RichText, Area, Order, Sense, UiBuilder, Layout, Align, CornerRadius};
-use crate::channel::{CHANNEL};
+use crate::channel::{CHANNEL, ProgressState};
 use tokio::time::{sleep, Duration};
+use std::time::Instant;
 
 // Helper function to interpolate between two Color32 values
 fn lerp_color32(a: Color32, b: Color32, t: f32) -> Color32 {
@@ -26,7 +27,29 @@ impl ProgressBarState {
         let progress_rx = CHANNEL.progress_rx.clone();
         let progress_state = progress_rx.borrow().clone();
 
-        if let Some(state) = &progress_state {
+        if let Some(ref state) = progress_state {
+            // UI-tied timeout logic: All ops inside data_mut to avoid lifetimes
+            let id: egui::Id = "progress_timer_start".into();
+            ui.ctx().data_mut(|d| {
+                let ts = d.get_temp_mut_or_insert_with(id, Instant::now);
+                let is_in_flight = state.progress < 1.0
+                    && !state.message.to_lowercase().contains("error")
+                    && !state.message.to_lowercase().contains("failed");
+                if is_in_flight {
+                    if ts.elapsed().as_secs() >= 15 {
+                        // Force timeout with simple feedback
+                        let _ = CHANNEL.progress_tx.send(Some(ProgressState {
+                            progress: 1.0,
+                            message: "Operation timed out—please try again".to_string(),
+                        }));
+                        *ts = Instant::now(); // Reset in place
+                    }
+                } else {
+                    // Not in-flight (done/error): reset timer
+                    *ts = Instant::now();
+                }
+            });
+
             Area::new("progress_bar_overlay".into())
                 .order(Order::Foreground)
                 .fixed_pos(Pos2::new(0.0, 0.0))
@@ -42,7 +65,7 @@ impl ProgressBarState {
                     button_response.on_hover_cursor(egui::CursorIcon::NotAllowed);
 
                     let center = Pos2::new(screen_rect.width() / 2.0, screen_rect.height() / 2.0);
-                    let content_width = 300.0;
+                    let content_width = 400.0;
                     let content_height = 100.0; // Reduced height since no icon is displayed
 
                     ui.scope_builder(
@@ -60,14 +83,21 @@ impl ProgressBarState {
                                     (
                                         Color32::from_rgb(255, 99, 71), // Red for failure
                                         1.0,
-        Color32::from_rgb(255, 255, 255), // White text for contrast
+                                        Color32::from_rgb(255, 255, 255), // White text for contrast
+                                    )
+                                } else if state.message.to_lowercase().contains("timed out") {
+                                    // Timeout: Yellow bar, full progress
+                                    (
+                                        Color32::from_rgb(255, 215, 0), // Yellow/gold for timeout
+                                        1.0,
+                                        Color32::from_rgb(0, 0, 0), // Black text for contrast on yellow
                                     )
                                 } else if state.progress >= 1.0 {
                                     // Success: Green bar, full progress
                                     (
                                         Color32::from_rgb(50, 205, 50), // Green for success
                                         1.0,
-        Color32::from_rgb(255, 255, 255), // White text for contrast
+                                        Color32::from_rgb(255, 255, 255), // White text for contrast
                                     )
                                 } else {
                                     // In-progress: Blue bar with pulse animation
@@ -99,7 +129,7 @@ impl ProgressBarState {
                                         .fill(fill_color),
                                 );
 
-                                // Automatically clear the progress bar after 1.5s for success or failure
+                                // Automatically clear the progress bar after 1s for success/failure/timeout
                                 if state.progress >= 1.0 || state.message.to_lowercase().contains("error") || state.message.to_lowercase().contains("failed") {
                                     ui.ctx().request_repaint_after(Duration::from_millis(1000));
                                     tokio::spawn(async {
@@ -114,6 +144,11 @@ impl ProgressBarState {
 
             true
         } else {
+            // No progress: clear any stale timer
+            let id: egui::Id = "progress_timer_start".into();
+            ui.ctx().data_mut(|d| {
+                let _ = d.remove::<Instant>(id);
+            });
             false
         }
     }

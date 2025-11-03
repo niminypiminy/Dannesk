@@ -2,31 +2,28 @@ use tokio_tungstenite::{connect_async, tungstenite::{Message, protocol::{CloseFr
 use tokio::net::TcpStream;
 use futures_util::{StreamExt, SinkExt};
 use crate::ws::config::{WEBSOCKET_URL, MAX_RECONNECT_ATTEMPTS, RECONNECT_BACKOFF_SECONDS};
-use tokio::sync::watch;
 use tokio::time::{timeout, Duration};
 use serde_json::Value;
-use ring::signature::Ed25519KeyPair;
-use base64::{engine::general_purpose, Engine as _};
-use crate::channel::{CHANNEL, StartupData};
+use crate::channel::{CHANNEL};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
 struct WsMessage {
     payload: Value,
-    pub_key: String,
-    signature: String,
+    auth_token: String,  // Simple shared secret, e.g., "dannesk"
 }
+
+const AUTH_TOKEN: &str = "dannesk";  // Hardcode or load from env/config if needed
 
 pub struct ConnectionManager {
     ws_stream: Option<WebSocketStream<MaybeTlsStream<TcpStream>>>,
-    startup_rx: watch::Receiver<Option<StartupData>>,
+    // Removed startup_rx since no longer needed
 }
 
 impl ConnectionManager {
-    pub fn new(startup_rx: watch::Receiver<Option<StartupData>>) -> Self {
+    pub fn new() -> Self {  // Simplified constructor
         Self {
             ws_stream: None,
-            startup_rx,
         }
     }
 
@@ -44,6 +41,14 @@ impl ConnectionManager {
                 Ok((stream, _)) => {
                     self.ws_stream = Some(stream);
                     let _ = ws_status_tx.send(true); // Connected
+
+                    // Optional: Send initial auth message on connect to prove legitimacy early
+                    // (Backend can close immediately if invalid)
+                    let initial_payload = serde_json::json!({ "type": "auth_init" });
+                    if let Err(e) = self.send(Message::Text(initial_payload.to_string())).await {
+                        return Err(format!("Failed to send initial auth: {}", e));
+                    }
+
                     return Ok(());
                 }
                 Err(_) => {
@@ -66,22 +71,9 @@ impl ConnectionManager {
                     let payload_json: Value = serde_json::from_str(&payload)
                         .map_err(|e| format!("Invalid JSON payload: {}", e))?;
 
-                    let startup_data = self.startup_rx.borrow().clone()
-                        .ok_or_else(|| "Startup data not available".to_string())?;
-
-                    let key_pair = Ed25519KeyPair::from_pkcs8(&startup_data.private_key)
-                        .map_err(|e| format!("Failed to load key pair from private key: {}", e))?;
-
-                    let payload_bytes = serde_json::to_string(&payload_json)
-                        .map_err(|e| format!("Failed to serialize payload: {}", e))?
-                        .into_bytes();
-
-                    let signature = key_pair.sign(&payload_bytes);
-
                     let ws_message = WsMessage {
                         payload: payload_json,
-                        pub_key: general_purpose::STANDARD.encode(&startup_data.public_key),
-                        signature: general_purpose::STANDARD.encode(signature.as_ref()),
+                        auth_token: AUTH_TOKEN.to_string(),
                     };
 
                     let serialized = serde_json::to_string(&ws_message)
@@ -130,6 +122,10 @@ impl ConnectionManager {
                 Ok(Some(Ok(Message::Text(text)))) => {
                     match serde_json::from_str::<WsMessage>(&text) {
                         Ok(ws_message) => {
+                            // Optional: Verify auth_token here if you want client-side checks (but backend should handle)
+                            if ws_message.auth_token != AUTH_TOKEN {
+                                return Some(Err("Invalid auth_token received".to_string()));
+                            }
                             let payload_text = match serde_json::to_string(&ws_message.payload) {
                                 Ok(text) => text,
                                 Err(e) => {
@@ -164,7 +160,7 @@ impl ConnectionManager {
                         // Ignore close error
                     }
                     self.ws_stream = None;
-                    let _ = ws_status_tx.send(false); // Disconnected, triggers banner
+                    let _ = ws_status_tx.send(false); 
                     Some(Err("WebSocket stream ended".to_string()))
                 }
                 Err(_) => {
@@ -172,7 +168,7 @@ impl ConnectionManager {
                         // Ignore close error
                     }
                     self.ws_stream = None;
-                    let _ = ws_status_tx.send(false); // Disconnected, triggers banner
+                    let _ = ws_status_tx.send(false); 
                     Some(Err("WebSocket read timed out".to_string()))
                 }
             }

@@ -124,7 +124,7 @@ ui.horizontal(|ui| {
         .outer_margin(Margin {
             left: 15,
             right: 0,
-            top: 0,
+            top: -20,
             bottom: 0,
         })
         .show(ui, |ui| {
@@ -146,7 +146,6 @@ ui.horizontal(|ui| {
     ui.add(
         SvgCanvas::paint_svg(if is_dark_mode { "xrp_white.svg" } else { "xrp_dark.svg" })
             .fit_to_exact_size(egui::vec2(16.0 * (available_width / 800.0).clamp(0.5, 1.0), 16.0 * (available_width / 1000.0).clamp(0.5, 1.0)))
-            .tint(text_color),
     );
     ui.add_space(4.0 * (available_width / 800.0).clamp(0.5, 1.0));
     ui.label(

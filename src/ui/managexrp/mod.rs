@@ -343,26 +343,6 @@ ui.horizontal_centered(|ui| {
                 let _ = xrp_modal_tx.send(new_state);
                 ui.ctx().request_repaint();
             }
-            ActiveView::InfoEuro => {
-                let should_close = euro::sf::render(ui);
-                let new_state = XRPModalState {
-                    import_wallet: None,
-                    create_wallet: None,
-                    view_type: if should_close { ActiveView::EURO } else { ActiveView::InfoEuro },
-                };
-                let _ = xrp_modal_tx.send(new_state);
-                ui.ctx().request_repaint();
-            }
-            ActiveView::InfoRLUSD => {
-                let should_close = rlusd::ripple::render(ui);
-                let new_state = XRPModalState {
-                    import_wallet: None,
-                    create_wallet: None,
-                    view_type: if should_close { ActiveView::RLUSD } else { ActiveView::InfoRLUSD },
-                };
-                let _ = xrp_modal_tx.send(new_state);
-                ui.ctx().request_repaint();
-            }
             ActiveView::Transactions => {
                 let should_close = transactions::render(ui);
                 let new_state = XRPModalState {

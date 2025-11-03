@@ -38,7 +38,7 @@ impl SettingComponent for NameComponent {
         let button_text_size = (available_width * 0.04).clamp(14.0, 16.0);
         let feedback_text_size = (available_width * 0.035).clamp(12.0, 14.0);
         let spacing = (available_width * 0.03).clamp(8.0, 12.0);
-        let input_width = (available_width * 0.8).clamp(200.0, 400.0);
+        let input_width = (available_width * 0.8).clamp(150.0, 300.0);
         let button_width = (available_width * 0.2).clamp(100.0, 200.0);
 
         ui.allocate_ui_with_layout(

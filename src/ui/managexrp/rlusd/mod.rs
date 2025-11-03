@@ -8,7 +8,6 @@ pub mod shared_utils;
 pub mod receiverlusd;
 pub mod send;
 pub mod modify;
-pub mod ripple;
 
 pub fn render_rlusd_balance(ui: &mut Ui, _commands_tx: mpsc::Sender<WSCommand>) {
     let rlusd_rx = CHANNEL.rlusd_rx.clone();
