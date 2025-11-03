@@ -26,14 +26,6 @@ Download and install Dannesk from [dannesk.com](https://dannesk.com).
 3. Trade stablecoins or manage your balances.
 4. All operations and signing occur locally on your device.
 
-## Security
-
-- Keys are encrypted locally with AES-256.
-- Passphrases never leave your device.
-- Verify checksums before running downloaded binaries.
-
-cargo build --release
-
 ## License
 
 Dannesk is licensed under the GNU General Public License v3 (GPLv3). See the [LICENSE](LICENSE) file for details.
