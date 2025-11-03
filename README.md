@@ -32,11 +32,6 @@ Download and install Dannesk from [dannesk.com](https://dannesk.com).
 - Passphrases never leave your device.
 - Verify checksums before running downloaded binaries.
 
-## Development
-
-```bash
-git clone https://github.com/niminipiminy/dannesk.git
-cd dannesk
 cargo build --release
 
 ## License
