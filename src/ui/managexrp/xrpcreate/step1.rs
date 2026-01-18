@@ -1,145 +1,147 @@
-use egui::{Ui, RichText, CursorIcon, Sense, Frame, Margin};
-use xrpl::wallet::Wallet;
-use xrpl::constants::CryptoAlgorithm;
-use crate::channel::{CHANNEL, XRPModalState, XRPImport, ActiveView};
-use super::styles; // For text_color, button_text_color, seed_frame
+use dioxus::prelude::*;
+use crate::context::XrpContext;
+use crate::channel::XRPWalletProcessState;
+use arboard::Clipboard;
 
-pub fn render(ui: &mut Ui, create_state: &mut XRPImport, _buffer_id: &str) {
-    let xrp_modal_tx = CHANNEL.xrp_modal_tx.clone();
-    let is_dark_mode = CHANNEL.theme_user_rx.borrow().0;
+#[component]
+pub fn view() -> Element {
+    let xrp_ctx = use_context::<XrpContext>();
+    let mut wallet_process = xrp_ctx.wallet_process;
+    
+    let modal_state = wallet_process.peek();
 
-    if create_state.seed.is_none() {
-        ui.label(RichText::new("Generate New XRP Wallet").size(16.0).color(styles::text_color(is_dark_mode)));
-        ui.add_space(10.0);
+    let seed_wrapper = modal_state.create_wallet
+        .as_ref()
+        .and_then(|s| s.seed.as_ref());
         
-        // Modernized Generate Button
-        ui.vertical_centered(|ui| {
-            let original_visuals = ui.visuals().clone();
-            let text_color = ui.style().visuals.text_color();
-            if !is_dark_mode {
-                ui.visuals_mut().widgets.inactive.fg_stroke = egui::Stroke::new(1.0, text_color);
-                ui.visuals_mut().widgets.active.fg_stroke = egui::Stroke::new(2.0, text_color);
+    let words: Vec<&str> = seed_wrapper
+        .map(|s| s.split_whitespace().collect())
+        .unwrap_or_default();
+
+    let on_next_click = move |_| {
+        wallet_process.with_mut(|state: &mut XRPWalletProcessState| {
+            if let Some(ref mut create) = state.create_wallet {
+                create.step = 2;
             }
-            Frame::new() // egui 0.31.1, no ID argument
-                .inner_margin(Margin::symmetric(8, 4))
-                .show(ui, |ui| {
-                    let generate_button = ui.add(
-                        egui::Button::new(RichText::new("Continue").size(14.0).color(text_color))
-                            .min_size(egui::Vec2::new(100.0, 28.0)),
-                    );
-                    if generate_button.clicked() {
-                        create_state.loading = true;
-                        create_state.error = None;
-                        let modal_tx = xrp_modal_tx.clone();
-                        let progress_tx = CHANNEL.progress_tx.clone();
-                        let create_state_clone = create_state.clone();
-
-                        std::thread::spawn(move || {
-                            let mut new_state = create_state_clone;
-                            match Wallet::create(Some(CryptoAlgorithm::ED25519)) {
-                                Ok(wallet) => {
-                                    new_state.seed = Some(wallet.seed.clone());
-                                    let _ = modal_tx.send(XRPModalState {
-                                        create_wallet: Some(new_state),
-                                        import_wallet: None,
-                                        view_type: ActiveView::XRP,
-                                    });
-                                    let _ = progress_tx.send(None);
-                                }
-                                Err(e) => {
-                                    new_state.error = Some(format!("Wallet creation failed: {}", e));
-                                    let _ = modal_tx.send(XRPModalState {
-                                        create_wallet: Some(new_state),
-                                        import_wallet: None,
-                                        view_type: ActiveView::XRP,
-                                    });
-                                    let _ = progress_tx.send(None);
-                                }
-                            }
-                        });
-                        let _ = xrp_modal_tx.send(XRPModalState {
-                            create_wallet: Some(create_state.clone()),
-                            import_wallet: None,
-                            view_type: ActiveView::XRP,
-                        });
-                    }
-                });
-            ui.visuals_mut().widgets = original_visuals.widgets;
         });
-    } else if let Some(seed) = &create_state.seed {
-        ui.label(RichText::new("Wallet Generated").size(16.0).color(styles::text_color(is_dark_mode)));
-        ui.add_space(10.0);
+    };
 
-        ui.group(|ui| {
-            ui.set_max_width(280.0);
-            styles::seed_frame(ui, |ui| {
-                ui.style_mut().spacing.item_spacing = egui::vec2(8.0, 8.0);
-                ui.horizontal(|ui| {
-                    // Seed phrase
-                    ui.add(
-                        egui::Label::new(
-                            RichText::new(seed)
-                                .monospace()
-                                .size(14.0)
-                                .color(styles::text_color(is_dark_mode)),
-                        )
-                    );
-                    // Modernized Copy Button with Emoji
-                    let original_visuals = ui.visuals().clone();
-                    let text_color = ui.style().visuals.text_color();
-                    if !is_dark_mode {
-                        ui.visuals_mut().widgets.inactive.fg_stroke = egui::Stroke::new(1.0, text_color);
-                        ui.visuals_mut().widgets.active.fg_stroke = egui::Stroke::new(2.0, text_color);
-                    }
-                    Frame::new() // egui 0.31.1, no ID argument
-                        .inner_margin(Margin::symmetric(8, 4))
-                        .show(ui, |ui| {
-                            let copy_label = ui.add(
-                                egui::Label::new(RichText::new("📋").size(12.0).color(text_color))
-                                    .sense(Sense::click()),
-                            )
-                            .on_hover_text("Copy to clipboard");
-                            if copy_label.clicked() {
-                                ui.ctx().copy_text(seed.clone());
-                            }
-                            if copy_label.hovered() {
-                                ui.ctx().set_cursor_icon(CursorIcon::PointingHand);
-                            }
-                        });
-                    ui.visuals_mut().widgets = original_visuals.widgets;
-                });
-            });
-        });
-
-        ui.add_space(10.0);
-        // Modernized Continue Button
-        ui.vertical_centered(|ui| {
-            let original_visuals = ui.visuals().clone();
-            let text_color = ui.style().visuals.text_color();
-            if !is_dark_mode {
-                ui.visuals_mut().widgets.inactive.fg_stroke = egui::Stroke::new(1.0, text_color);
-                ui.visuals_mut().widgets.active.fg_stroke = egui::Stroke::new(2.0, text_color);
+    let on_copy_click = move |_| {
+        if let Ok(mut ctx) = Clipboard::new() {
+            if let Some(ref create) = wallet_process.peek().create_wallet {
+                if let Some(ref seed) = create.seed {
+                    let _ = ctx.set_text(seed.to_string());
+                }
             }
-            Frame::new() // egui 0.31.1, no ID argument
-                .inner_margin(Margin::symmetric(8, 4))
-                .show(ui, |ui| {
-                    if ui
-                        .add(
-                            egui::Button::new(RichText::new("Continue").size(14.0).color(text_color))
-                                .min_size(egui::Vec2::new(100.0, 28.0)),
-                        )
-                        .clicked()
-                    {
-                        create_state.step = 2;
-                        let _ = xrp_modal_tx.send(XRPModalState {
-                            create_wallet: Some(create_state.clone()),
-                            import_wallet: None,
-                            view_type: ActiveView::XRP,
-                        });
-                        ui.ctx().request_repaint();
+        }
+    };
+
+     rsx! {
+        style { {r#"
+    .create-step1-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        width: 100%;
+    }
+    .title {
+        font-size: 1.5rem;
+        font-weight: bold;
+        margin-top: 1.5rem;
+        margin-bottom: 1rem;
+        color: var(--text); /* Use theme text color */
+    }
+    .instruction {
+        color: var(--text-secondary); /* Use theme secondary text */
+        font-size: 1rem;
+        margin-bottom: 20px;
+        text-align: center;
+        max-width: 400px;
+    }
+    .words-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 0.5rem;
+        padding: 1.2rem;
+    }
+    .word-chip {
+        /* Use the card background and border from your theme */
+        background-color: var(--bg-card);
+        border: 1px solid var(--border);
+        padding: 0.5rem 1rem;
+        border-radius: 0.5rem;
+        display: flex;
+        align-items: center;
+    }
+    .word-index {
+        color: var(--text-secondary);
+        font-size: 0.8rem; /* Slightly smaller for better hierarchy */
+        margin-right: 0.5rem;
+        user-select: none;
+    }
+    .word-text {
+        font-weight: 500;
+        font-family: monospace;
+        /* This will be white in dark mode and dark gray in light mode */
+        color: var(--text); 
+        font-size: 1rem;
+    }
+    .button-row {
+        display: flex;
+        flex-direction: row;
+        margin-top: 30px;
+    }
+    .action-btn {
+        width: 8.75rem; 
+        height: 2.25rem; 
+        /* Use your theme button variables */
+        background-color: var(--btn); 
+        color: #fffef9; /* Keep text light for the dark buttons */
+        border: none; 
+        border-radius: 1.375rem; 
+        font-size: 1rem; 
+        display: flex; 
+        cursor: pointer; 
+        justify-content: center; 
+        align-items: center;
+        margin-left: 1rem;
+        margin-right: 1rem;
+        transition: background-color 0.2s;
+    }
+    .action-btn:hover {
+        background-color: var(--btn-hover);
+    }
+"#} }
+
+        div { class: "create-step1-container",
+            div { class: "title", "Write Down Your Recovery Phrase" }
+            div { class: "instruction", 
+                "Please write down these 24 words in the correct order and store them safely. "
+            }
+
+            div { class: "words-grid",
+                for (i, word) in words.iter().enumerate() {
+                    div { 
+                        key: "{i}",
+                        class: "word-chip",
+                        span { class: "word-index", "{i + 1}" }
+                        span { class: "word-text", "{word}" }
                     }
-                });
-            ui.visuals_mut().widgets = original_visuals.widgets;
-        });
+                }
+            }
+
+            div { class: "button-row",
+                button { 
+                    class: "action-btn",
+                    onclick: on_copy_click,
+                    "Copy"
+                }
+                button { 
+                    class: "action-btn",
+                    onclick: on_next_click,
+                    "Continue"
+                }
+            }
+        }
     }
 }

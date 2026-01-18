@@ -1,0 +1,14 @@
+
+use dioxus::prelude::*;
+
+// Using the #b0b0b0 version to match the Eye and Profile icons
+const TRANSACTIONS_ICON_URI: &str = "data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTgiPz48IS0tIFVwbG9hZGVkIHRvOiBTVkcgUmVwbywgd3d3LnN2Z3JlcG8uY29tLCBHZW5lcmF0b3I6IFNWRyBSZXBvIE1peGVyIFRvb2xzIC0tPgo8c3ZnIHdpZHRoPSIyNHB4IiBoZWlnaHQ9IjI0cHgiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iNS41IiBjeT0iNy41IiByPSIxIiBzdHJva2U9IiNiMGIwYjAiLz4KPHBhdGggZD0iTTguNSA2LjVIMTkuNSIgc3Ryb2tlPSIjYjBiMGIwIiBzdHJva2UtbGluZWNhcD0icm91bmQiLz4KPHBhdGggZD0iTTguNSA4LjVIMTQuNSIgc3Ryb2tlPSIjYjBiMGIwIiBzdHJva2UtbGluZWNhcD0icm91bmQiLz4KPGNpcmNsZSBjeD0iNS41IiBjeT0iMTIiIHI9IjEiIHN0cm9rZT0iI2IwYjBiMCIvPgo8cGF0aCBkPSJNOC41IDExSDE2LjUiIHN0cm9rZT0iI2IwYjBiMCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIi8+CjxwYXRoIGQ9Ik04LjUgMTNIMTUuNSIgc3Ryb2tlPSIjYjBiMGIwIiBzdHJva2UtbGluZWNhcD0icm91bmQiLz4KPGNpcmNsZSBjeD0iNS41IiBjeT0iMTYuNSIgcj0iMSIgc3Ryb2tlPSIjYjBiMGIwIi8+CjxwYXRoIGQ9Ik04LjUgMTUuNUgxOCIgc3Ryb2tlPSIjYjBiMGIwIiBzdHJva2UtbGluZWNhcD0icm91bmQiLz4KPHBhdGggZD0iTTguNSAxNy41SDEyLjUiIHN0cm9rZT0iI2IwYjBiMCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIi8+Cjwvc3ZnPg==";
+
+#[component]
+pub fn TransactionsIcon() -> Element {
+    rsx! {
+        img {
+            src: "{TRANSACTIONS_ICON_URI}",
+        }
+    }
+}

@@ -1,8 +1,9 @@
+// Updated submit_transaction.rs (only the relevant part)
 use serde_json::Value;
 use tokio_tungstenite::tungstenite::Message;
 use crate::ws::connection::ConnectionManager;
 use crate::channel::{CHANNEL, WSCommand, ProgressState};
-use crate::ws::commands::{bitcoin_validation, bitcoin_auth, bitcoin_payment, bitcoin_transaction_sender, state};
+use crate::ws::commands::{bitcoin_validation, bitcoin_auth, bitcoin_payment, bitcoin_transaction_sender};
 
 pub async fn execute(
     connection: &mut ConnectionManager,
@@ -30,8 +31,8 @@ pub async fn execute(
         message: "constructing transaction".to_string(),
     }));
 
-    // Get fee from cmd.trustline_limit
-    let fee = cmd.trustline_limit.as_ref().ok_or_else(|| {
+    // Get fee from cmd.fee
+    let fee = cmd.fee.as_ref().ok_or_else(|| {
         let err = "Error: No transaction fee specified".to_string();
         let _ = CHANNEL.progress_tx.send(Some(ProgressState {
             progress: 1.0,
@@ -48,8 +49,13 @@ pub async fn execute(
         err
     })?;
 
-    // Authenticate wallet
-    let wallet_obj = bitcoin_auth::authenticate_wallet(cmd.passphrase.clone(), cmd.seed.clone(), &wallet)?;
+    // Authenticate wallet (now passing bip39)
+    let wallet_obj = bitcoin_auth::authenticate_wallet(
+        cmd.passphrase.clone(), 
+        cmd.seed.clone(), 
+        cmd.bip39.clone(), // Pass the optional BIP39
+        &wallet
+    )?;
 
     // Construct transaction
     let tx_hex = bitcoin_payment::construct_transaction(&wallet_obj, &cmd, &tx_type, utxos, fee).await?;
@@ -60,6 +66,7 @@ pub async fn execute(
     Ok(())
 }
 
+// The process_response function remains unchanged
 pub async fn process_response(message: Message, _bitcoin_current_wallet: &str) -> Result<(), String> {
     static FAILED: &str = "Error: Transaction validation failed";
 
@@ -118,7 +125,6 @@ pub async fn process_response(message: Message, _bitcoin_current_wallet: &str) -
                 progress: 1.0,
                 message: "Transaction added to Mempool. Status Pending".to_string(),
             }));
-            state::update_state_on_success();
 
             Ok(())
         }

@@ -1,0 +1,18 @@
+use dioxus::prelude::*;
+
+// This is the DARK colored icon (use in Light Mode)
+const DARK_ICON: &str = "data:image/svg+xml;base64,PHN2ZyB2aWV3Qm94PSIwIDAgMjAgMTYuNTYzIiB3aWR0aD0iMjAiIGhlaWdodD0iMTYuNTYzIj48ZGVmcz48c3R5bGU+LmNscy0xe2ZpbGw6IzIzMjkyZjt9PC9zdHlsZT48L2RlZnM+PHRpdGxlPng8L3RpdGxlPjxnIGlkPSJMYXllcl8yIiBkYXRhLW5hbWU9IkxheWVyIDIiPjxnIGlkPSJMYXllcl8xLTIiIGRhdGEtbmFtZT0iTGF5ZXIgMSI+PHBhdGggY2xhc3M9ImNscy0xIiBkPSJNMTcuMDcgMGgyLjg5MUwxMy45NDUgNS45NTZjLTIuMTc5IDIuMTU2IC01LjcxMSAyLjE1NiAtNy44OTEgMEwwLjAzNyAwSDIuOTNsNC41NyA0LjUyNWEzLjU1OSAzLjU1OSAwIDAgMCA0Ljk5NiAwWiIvPjxwYXRoIGNsYXNzPSJjbHMtMSIgZD0iTTIuODkzIDE2LjU2M0gwbDYuMDU1IC01Ljk5M2MyLjE3OSAtMi4xNTYgNS43MTEgLTIuMTU2IDcuODkxIDBMMjAgMTYuNTYzaC0yLjg5MUwxMi41IDEyLjAwMWEzLjU1OSAzLjU1OSAwIDAgMCAtNC45OTYgMFoiLz48L2c+PC9nPjwvc3ZnPg==";
+const WHITE_ICON: &str = "data:image/svg+xml;base64,PHN2ZyB2aWV3Qm94PSIwIDAgMjAgMTYuNTYzIiB3aWR0aD0iMjAiIGhlaWdodD0iMTYuNTYzIj48ZGVmcz48c3R5bGU+LmNscy0xe2ZpbGw6I0ZGRkZGRjt9PC9zdHlsZT48L2RlZnM+PHRpdGxlPng8L3RpdGxlPjxnIGlkPSJMYXllcl8yIiBkYXRhLW5hbWU9IkxheWVyIDIiPjxnIGlkPSJMYXllcl8xLTIiIGRhdGEtbmFtZT0iTGF5ZXIgMSI+PHBhdGggY2xhc3M9ImNscy0xIiBkPSJNMTcuMDcgMGgyLjg5MWwtNi4wMTYgNS45NTZjLTIuMTc4IDIuMTU2IC01LjcxMSAyLjE1NiAtNy44OTEgMEwwLjAzNyAwaDIuODkzTDcuNSA0LjUyNWEzLjU1OCAzLjU1OCAwIDAgMCA0Ljk5NyAwWiIvPjxwYXRoIGNsYXNzPSJjbHMtMSIgZD0iTTIuODkzIDE2LjU2M0gwbDYuMDU1IC01Ljk5M2MyLjE3OCAtMi4xNTYgNS43MTEgLTIuMTU2IDcuODkxIDBMMjAgMTYuNTYzaC0yLjg5MUwxMi41IDEyLjAwMWEzLjU1OCAzLjU1OCAwIDAgMCAtNC45OTcgMFoiLz48L2c+PC9nPjwvc3ZnPg==";
+
+#[component]
+pub fn XrpIcon(dark: bool) -> Element {
+    // If dark theme is true, show the White icon. Otherwise show Dark icon.
+    let src = if dark { WHITE_ICON } else { DARK_ICON };
+    
+    rsx! {
+        img {
+            src: "{src}",
+           
+        }
+    }
+}

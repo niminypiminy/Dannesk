@@ -23,11 +23,10 @@ pub fn load_wallets(commands_tx: mpsc::Sender<WSCommand>) {
             Ok(json) => {
                 let address = json.get("address").and_then(|v| v.as_str()).unwrap_or("").to_string();
                 let private_key_deleted = json.get("private_key_deleted").and_then(|v| v.as_bool()).unwrap_or(false);
-                let rlusd = false; // Default since not in xrp.json
 
                 // Update XRP wallet channel with initial data
                 if !address.is_empty() {
-                    let _ = CHANNEL.wallet_balance_tx.send((0.0, Some(address.clone()), rlusd, private_key_deleted));
+                    let _ = CHANNEL.wallet_balance_tx.send((0.0, Some(address.clone()), private_key_deleted));
 
                     // Send get_cached_balance command
                     let command = WSCommand {
@@ -37,12 +36,14 @@ pub fn load_wallets(commands_tx: mpsc::Sender<WSCommand>) {
                         amount: None,
                         passphrase: None,
                         trustline_limit: None,
+                        fee: None,
                         tx_type: None,
                         taker_pays: None,
                         taker_gets: None,
                         seed: None,
                         flags: None,
                         wallet_type: None,
+                        bip39: None,
                     };
                     let _ = commands_tx.try_send(command);
                 }
@@ -73,12 +74,14 @@ pub fn load_wallets(commands_tx: mpsc::Sender<WSCommand>) {
                         amount: None,
                         passphrase: None,
                         trustline_limit: None,
+                        fee: None,
                         tx_type: None,
                         taker_pays: None,
                         taker_gets: None,
                         seed: None,
                         flags: None,
                         wallet_type: None,
+                        bip39: None,
                     };
                     let _ = commands_tx.try_send(command);
                 }

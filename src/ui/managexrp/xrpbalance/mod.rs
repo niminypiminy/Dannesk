@@ -1,269 +1,163 @@
-use egui::{Ui, RichText, Color32, Frame, CursorIcon, Margin, Grid};
-use crate::channel::{CHANNEL, SignTransactionState, SignTransaction, XRPModalState, ActiveView, WSCommand};
-use crate::ui::managexrp::xrpbalance::wallet_operations::WalletOperations;
-use crate::ui::progressbar::ProgressBarState;
-use uuid::Uuid;
-use crate::utils::svg_render::SvgCanvas; // Import SvgCanvas
-use tokio::sync::mpsc;
+// src/ui/render_xrp_balance.rs
 
-pub mod receive;
+use dioxus::prelude::*;
+use crate::context::{GlobalContext, XrpContext};
+use crate::utils::add_commas;
+use crate::ui::managexrp::xrpbalance::wallet_operations::WalletOperations;
+use crate::utils::xrpsvg::XrpIcon;
+use crate::utils::upsvg::UpIcon;
+use crate::utils::downsvg::DownIcon;
+
+
 pub mod wallet_operations;
 
-pub fn render_xrp_balance(ui: &mut Ui, commands_tx: mpsc::Sender<WSCommand>) {
-    // Clone channels
-    let wallet_balance_rx = CHANNEL.wallet_balance_rx.clone();
-    let rates_rx = CHANNEL.rates_rx.clone();
-    let theme_user_rx = CHANNEL.theme_user_rx.clone();
-    let sign_transaction_tx = CHANNEL.sign_transaction_tx.clone();
-    let xrp_modal_tx = CHANNEL.xrp_modal_tx.clone();
+pub fn render_xrp_balance() -> Element {
+    let global = use_context::<GlobalContext>();
+    let xrp_ctx = use_context::<XrpContext>();
+    let mut sign_tx = xrp_ctx.sign_transaction;
+    let mut xrp_modal = xrp_ctx.xrp_modal;
 
-    // Clone inner data
-    let (balance, wallet_address, xrp_active, private_key_deleted) = wallet_balance_rx.borrow().clone();
-    let rates = rates_rx.borrow().clone();
-    let (is_dark_mode, _, hide_balance) = theme_user_rx.borrow().clone();
-    let exchange_rate = rates.get("XRP/USD").copied().unwrap_or(0.0) as f64;
-    let wallet_value = balance * exchange_rate;
-    let is_new_wallet = !xrp_active;
+let (xrp_amount, address, key_is_deleted) = xrp_ctx.wallet_balance.read().clone();
 
-    // Define text color based on theme
-    let text_color = if is_dark_mode {
-        Color32::from_rgb(255, 254, 250) // Off-white for dark mode
+    let rates = global.rates.read();
+    let xrp_usd_rate = rates.get("XRP/USD").copied().unwrap_or(0.0) as f64;
+
+let (is_dark, _, hide_balance) = global.theme_user.read().clone();
+
+    let total_usd = xrp_amount * xrp_usd_rate;
+
+     let (int_part, frac_part) = if hide_balance {
+        ("****".to_string(), "".to_string())
     } else {
-        Color32::from_rgb(34, 34, 34) // Dark grey for light mode
+        let formatted_int = add_commas(total_usd.floor() as i64);
+        // Ensure we get exactly .XX
+        let formatted_frac = format!(".{:02}", (total_usd.fract() * 100.0).floor() as i64);
+        (formatted_int, formatted_frac)
     };
 
-    // Initialize progress bar state
-    let mut progress_bar = ProgressBarState::new(
-        if ui.data(|data| data.get_temp::<bool>("remove_wallet_triggered".into()).unwrap_or(false)) {
-            "Removing Wallet".to_string()
-        } else {
-            "Deleting Key".to_string()
+        let formatted_raw_xrp = format!("{:.6}", xrp_amount);
+
+
+    // Async handlers
+    let on_remove_wallet = {
+        let ws_tx = global.ws_tx.clone();
+        let address = address.clone();
+        move |_| {
+            if let Some(addr) = address.clone() {
+                tokio::spawn(WalletOperations::remove_wallet(addr, ws_tx.clone()));
+            }
         }
-    );
+    };
 
-    // Render progress bar overlay; skip main UI if active
-    if progress_bar.render_progress_bar(ui, 400.0) {
-        return;
-    }
-
-    ui.set_min_height(ui.available_height());
-    ui.vertical_centered(|ui| {
-        let available_width = ui.available_width();
-        let available_height = ui.available_height();
-
-        // Dynamic vertical spacing
-        let container_height = 220.0 + if is_new_wallet || xrp_active { 10.0 } else { 0.0 };
-        ui.add_space((available_height * 0.5 - container_height / 2.0).max(20.0));
-
-        // Dynamic font size for balance text
-        let font_size = (available_width * 0.1).clamp(40.0, 100.0);
-        let balance_text = if hide_balance {
-            "****".to_string()
-        } else {
-            format!("${:.2}", wallet_value)
-        };
-
-        // Render balance text
-        ui.label({
-            let mut job = egui::text::LayoutJob::default();
-            if !hide_balance {
-                let decimal_pos = balance_text.find('.').unwrap_or(balance_text.len());
-                job.append(
-                    "$",
-                    0.0,
-                    egui::TextFormat {
-                        font_id: egui::FontId::new(font_size, egui::FontFamily::Name("DejaVuSansMono".into())),
-                        color: text_color,
-                        ..Default::default()
-                    },
-                );
-                job.append(
-                    &balance_text[1..decimal_pos],
-                    0.0,
-                    egui::TextFormat {
-                        font_id: egui::FontId::new(font_size, egui::FontFamily::Name("DejaVuSansMonoBold".into())),
-                        color: text_color,
-                        ..Default::default()
-                    },
-                );
-                if decimal_pos < balance_text.len() {
-                    job.append(
-                        &balance_text[decimal_pos..],
-                        0.0,
-                        egui::TextFormat {
-                            font_id: egui::FontId::new(font_size, egui::FontFamily::Name("DejaVuSansMono".into())),
-                            color: text_color,
-                            ..Default::default()
-                        },
-                    );
-                }
-            } else {
-                job.append(
-                    &balance_text,
-                    0.0,
-                    egui::TextFormat {
-                        font_id: egui::FontId::new(font_size, egui::FontFamily::Name("DejaVuSansMono".into())),
-                        color: text_color,
-                        ..Default::default()
-                    },
-                );
+    let on_delete_key = {
+        let address = address.clone();
+        move |_| {
+            if let Some(addr) = address.clone() {
+                tokio::spawn(WalletOperations::delete_key(addr));
             }
-            ui.fonts(|f| f.layout_job(job))
-        });
+        }
+    };
 
-        ui.add_space(20.0 * (available_width / 800.0).clamp(0.5, 1.0));
-
-        // Balance and Exchange Rate in Grid
-ui.horizontal(|ui| {
-    let total_grid_width = 210.0; // Fixed width to match original
-    if available_width > total_grid_width {
-        ui.add_space((available_width - total_grid_width) / 2.0);
-    }
-    Frame::new()
-        .fill(ui.style().visuals.panel_fill) // Match theme
-        .outer_margin(Margin {
-            left: 15,
-            right: 0,
-            top: -20,
-            bottom: 0,
-        })
-        .show(ui, |ui| {
-            let col_width = (total_grid_width - 10.0) / 2.0;
-            let text_size = (available_width * 0.015).clamp(12.0, 14.0);
-            Grid::new("xrp_details_grid")
-                .striped(true)
-                .num_columns(2)
-                .spacing([10.0 * (available_width / 800.0).clamp(0.5, 1.0), 5.0])
-                .min_col_width(col_width)
-                .show(ui, |ui| {
-                    // Header row
-                    ui.label(RichText::new("Balance").size(text_size).strong().color(text_color));
-                    ui.label(RichText::new("Rate").size(text_size).strong().color(text_color));
-                    ui.end_row();
-
-                    // XRP row
-                    ui.horizontal(|ui| {
-    ui.add(
-        SvgCanvas::paint_svg(if is_dark_mode { "xrp_white.svg" } else { "xrp_dark.svg" })
-            .fit_to_exact_size(egui::vec2(16.0 * (available_width / 800.0).clamp(0.5, 1.0), 16.0 * (available_width / 1000.0).clamp(0.5, 1.0)))
-    );
-    ui.add_space(4.0 * (available_width / 800.0).clamp(0.5, 1.0));
-    ui.label(
-        RichText::new(if hide_balance {
-            "**** XRP".to_string()
-        } else {
-            format!("{:.6}", balance)
-        })
-        .size(text_size)
-        .color(text_color)
-    )
-    .on_hover_text(if hide_balance { "Balance hidden for privacy" } else { "XRP balance" });
-});
-                    ui.label(RichText::new(format!("${:.4}", exchange_rate)).size(text_size).color(text_color));
-                    ui.end_row();
-                });
-        });
-});
-
-        ui.add_space(20.0 * (available_width / 800.0).clamp(0.5, 1.0));
-
-        // Send/Receive Buttons
-        ui.horizontal(|ui| {
-            ui.spacing_mut().item_spacing.x = 20.0 * (available_width / 800.0).clamp(0.5, 1.0);
-            let text_size = (available_width * 0.03).clamp(20.0, 24.0);
-            let send_text = RichText::new("↑")
-                .size(text_size)
-                .color(text_color)
-                .font(egui::FontId::new(text_size, egui::FontFamily::Name("DejaVuSansMono".into())));
-            let receive_text = RichText::new("↓")
-                .size(text_size)
-                .color(text_color)
-                .font(egui::FontId::new(text_size, egui::FontFamily::Name("DejaVuSansMono".into())));
-            let button_width = (available_width * 0.1).clamp(50.0, 60.0);
-            let button_height = (available_width * 0.06).clamp(35.0, 40.0);
-            let total_width = button_width * 2.0 + ui.spacing().item_spacing.x;
-            if available_width > total_width {
-                ui.add_space((available_width - total_width) / 2.0);
-            }
-            let send_response = ui.add_sized(
-                [button_width, button_height],
-                egui::Button::new(send_text),
-            );
-            let receive_response = ui.add_sized(
-                [button_width, button_height],
-                egui::Button::new(receive_text),
-            );
-            if send_response.clicked() {
-                let _ = sign_transaction_tx.send(SignTransactionState {
-                    send_transaction: Some(SignTransaction {
-                        step: 1,
-                        loading: false,
-                        error: None,
-                        done: false,
-                        buffer_id: Some(Uuid::new_v4().to_string()),
-                    }),
-                });
-                ui.ctx().request_repaint();
-            }
-            if receive_response.clicked() {
-                let _ = xrp_modal_tx.send(XRPModalState {
-                    import_wallet: None,
-                    create_wallet: None,
-                    view_type: ActiveView::Receive,
-                });
-                ui.ctx().request_repaint();
-            }
-        });
-
-        ui.add_space(20.0 * (available_width / 800.0).clamp(0.5, 1.0));
-
-        // Remove/Delete Links
-        ui.horizontal(|ui| {
-            ui.spacing_mut().item_spacing.x = 30.0 * (available_width / 800.0).clamp(0.5, 1.0);
-            let text_size = (available_width * 0.02).clamp(14.0, 16.0);
-            let remove_text = RichText::new("Remove Wallet")
-                .size(text_size)
-                .underline()
-                .color(text_color);
-            let mut delete_text = RichText::new(if private_key_deleted { "Key Deleted" } else { "Delete Key" })
-                .size(text_size)
-                .color(text_color);
-            if private_key_deleted {
-                delete_text = delete_text.strikethrough();
-            } else {
-                delete_text = delete_text.underline();
-            }
-            let remove_width = ui.fonts(|f| f.layout_no_wrap("Remove Wallet".into(), egui::FontId::proportional(text_size), text_color)).rect.width();
-            let delete_width = ui.fonts(|f| f.layout_no_wrap(if private_key_deleted { "Key Deleted" } else { "Delete Key" }.into(), egui::FontId::proportional(text_size), text_color)).rect.width();
-            let total_width = remove_width + ui.spacing().item_spacing.x + delete_width;
-            if available_width > total_width {
-                ui.add_space((available_width - total_width) / 2.0);
-            }
-            let remove_link = ui.add(
-                egui::Label::new(remove_text)
-                    .sense(egui::Sense::click())
-            );
-            let delete_link = ui.add(
-                egui::Label::new(delete_text)
-                    .sense(if private_key_deleted { egui::Sense::hover() } else { egui::Sense::click() })
-            );
-            if remove_link.hovered() || (delete_link.hovered() && !private_key_deleted) {
-                ui.ctx().set_cursor_icon(CursorIcon::PointingHand);
-            }
-            if remove_link.clicked() {
-                ui.data_mut(|data| {
-                    data.insert_temp("remove_wallet_triggered".into(), true);
-                });
-                WalletOperations::remove_wallet(wallet_address.clone(), commands_tx.clone());
-            }
-            if delete_link.clicked() && !private_key_deleted {
-                ui.data_mut(|data| {
-                    data.insert_temp("remove_wallet_triggered".into(), false);
-                });
-                WalletOperations::delete_key(wallet_address.clone());
-            }
-        });
-
-        ui.add_space(10.0 * (available_width / 800.0).clamp(0.5, 1.0));
+   let on_receive_click = move |_| {
+    xrp_modal.with_mut(|state| {
+        // Bookmark XRP as the origin
+        state.last_view = Some(crate::channel::ActiveView::XRP);
+        state.view_type = crate::channel::ActiveView::Receive;
     });
+};
+
+    let on_send_click = move |_| {
+        // 1. Set the bookmark
+        xrp_modal.with_mut(|state| {
+        state.last_view = Some(crate::channel::ActiveView::XRP);
+        state.view_type = crate::channel::ActiveView::Send; 
+    });
+    // 2. Initialize the Send state
+        sign_tx.with_mut(|state| {
+            state.send_transaction = Some(crate::channel::SignTransaction {
+                step: 1,
+                error: None,
+                recipient: None, 
+                amount: None,
+                asset: "XRP".to_string()
+            });
+        });
+    };
+
+
+
+rsx! {
+    div {
+        // Use flex-grow: 1 to fill space between sidebars without forcing a 100% width conflict
+        style: "display: flex; flex-direction: column; align-items: center; flex: 1; font-family: monospace; padding-top: 2rem; box-sizing: border-box;",
+
+        div {
+            // Constrain width to 24rem (well within the 32rem max) to ensure no sidebar overlap
+            // Using flex-shrink: 0 prevents Taffy from squishing this container
+            style: "width: 24rem; flex-shrink: 0; display: flex; flex-direction: column; align-items: center; box-sizing: border-box;",
+
+            // BLOCK 1: MAIN BALANCE
+            div {
+                style: "display: flex; justify-content: center; margin-bottom: 2.5rem;",
+                h1 {
+                    style: "display: flex; align-items: baseline; font-size: 6rem; line-height: 1; margin: 0;",
+                    if !hide_balance {
+                        span { style: "font-weight: bold; margin-right: 0.5rem;", "$" }
+                        span { style: "font-weight: bold;", "{int_part}" }
+                        span { style: "opacity: 0.8;", "{frac_part}" }
+                    } else {
+                        span { style: "font-weight: normal; letter-spacing: 0.5rem;", "****" }
+                    }
+                }
+            }
+
+            // BLOCK 2: DETAILS
+            div {
+                style: "display: flex; flex-direction: column; align-items: center; margin-bottom: 2.5rem;",
+                h5 {
+                    style: "display: flex; flex-direction: column; align-items: center; opacity: 0.7; font-weight: normal; margin: 0;",
+                    span { 
+                        style: "display: flex; align-items: center; gap: 0.5rem; font-size: 1.25rem; margin-bottom: 0.25rem;", 
+                        if hide_balance { "****" } else { "{formatted_raw_xrp}" }
+                        XrpIcon { dark: is_dark }
+                    }
+                    span { style: "font-size: 0.9rem; opacity: 0.5;", "Rate: ${xrp_usd_rate:.4}" }
+                }
+            }
+
+            // BLOCK 3: ACTION BUTTONS
+            div {
+                style: "display: flex; flex-direction: row; justify-content: center; gap: 1rem; margin-bottom: 2.5rem;",
+                button {
+                    style: "display: flex; justify-content: center; align-items: center; width: 6rem; height: 3.5rem; border: 1px solid #444; border-radius: 2rem; background: none; color: #888; cursor: pointer;",
+                    onclick: on_send_click,
+                    UpIcon {}
+                }
+                button {
+                    style: "display: flex; justify-content: center; align-items: center; width: 6rem; height: 3.5rem; border: 1px solid #444; border-radius: 2rem; background: none; color: #888; cursor: pointer;",
+                    onclick: on_receive_click,
+                    DownIcon {}
+                }
+            }
+
+            // BLOCK 4: FOOTER LINKS
+            div {
+                style: "display: flex; flex-direction: row; justify-content: center; gap: 2.5rem; font-size: 0.9rem; padding: 1rem 0;",
+                span { 
+                    style: "text-decoration: underline; cursor: pointer; opacity: 0.6;", 
+                    onclick: on_remove_wallet, 
+                    "Remove Wallet" 
+                }
+                span { 
+                    style: format!(
+                        "{}",
+                        if key_is_deleted { "color: #ffadadff;" } else { "text-decoration: underline; cursor: pointer; opacity: 0.6;" }
+                    ),
+                    onclick: move |e| { if !key_is_deleted { on_delete_key(e); } },
+                    if key_is_deleted { "Key Purged" } else { "Delete Key" }
+                }
+            }
+        }
+    }
+}
 }

@@ -1,10 +1,9 @@
-// ws/commands/submit_transaction.rs
-// executes and calls modules in sequence
 use serde_json::Value;
 use tokio_tungstenite::tungstenite::Message;
 use crate::ws::connection::ConnectionManager;
 use crate::channel::{CHANNEL, WSCommand, ProgressState};
-use crate::ws::commands::{validation, wallet_auth, transaction_builder, transaction_sender, state};
+use crate::ws::commands::{validation, wallet_auth, transaction_builder, transaction_sender};
+
 
 #[derive(Clone)]
 struct LedgerData {
@@ -32,25 +31,30 @@ pub async fn execute(
         })?;
     let ledger_data = LedgerData { sequence, fee };
 
-    // Send progress update
     let _ = CHANNEL.progress_tx.send(Some(ProgressState {
         progress: 0.4,
         message: "constructing blob".to_string(),
     }));
 
-    // Authenticate wallet
-    let wallet_obj = wallet_auth::authenticate_wallet(cmd.passphrase.clone(), cmd.seed.clone(), &wallet)?;
+    // 1. Authenticate wallet
+    // FIX: Cloning here now produces Zeroizing<String>, maintaining security.
+    let wallet_obj = wallet_auth::authenticate_wallet(
+        cmd.passphrase.clone(), 
+        cmd.seed.clone(), 
+        cmd.bip39.clone(), 
+        &wallet
+    )?;
 
-    // Construct transaction blob
+    // 2. Construct transaction blob
     let tx_blob = transaction_builder::construct_blob(
         &wallet_obj,
-        &cmd,
+        &cmd, 
         &tx_type,
         ledger_data.sequence,
         ledger_data.fee.clone(),
     ).await?;
 
-    // Send transaction
+  
     transaction_sender::send_transaction(connection, &wallet, &tx_type, tx_blob).await?;
 
     Ok(())
@@ -115,7 +119,6 @@ pub async fn process_response(message: Message, _current_wallet: &str) -> Result
                 progress: 1.0,
                 message: "Your transaction was successful".to_string(),
             }));
-            state::update_state_on_success();
 
             Ok(())
         }

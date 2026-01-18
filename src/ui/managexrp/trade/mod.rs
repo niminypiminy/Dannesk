@@ -1,127 +1,85 @@
-use egui::{Ui, Vec2, Pos2, Align2, Area, Frame, Color32, RichText};
-use crate::channel::{CHANNEL, XRPModalState, ActiveView, WSCommand};
-use crate::ui::managexrp::trade::buffers::{get_or_init_buffer_id, get_buffer, clear_buffer, clear_all_buffers, update_buffers};
-use crate::ui::managexrp::trade::styles::{text_color, modal_fill, modal_stroke, close_button};
+use dioxus::prelude::*;
+use crate::context::XrpContext;
+use crate::channel::{SignTradeState};
+use crate::utils::styles;
+use arboard::Clipboard; 
 
-pub mod buffers;
 pub mod step1;
 pub mod step2;
-pub mod styles;
+pub mod step3; 
+pub mod tradelogic;
 
-pub fn view(ui: &mut Ui, commands_tx: tokio::sync::mpsc::Sender<WSCommand>) -> bool {
-    let theme_rx = CHANNEL.theme_user_rx.clone();
-    let xrp_modal_tx = CHANNEL.xrp_modal_tx.clone();
-    let is_dark_mode = theme_rx.borrow().0;
+#[component]
+pub fn view() -> Element {
+    let xrp_ctx = use_context::<XrpContext>();
+    let mut trade = xrp_ctx.trade;
+    let mut xrp_modal = xrp_ctx.xrp_modal;
+    
+    let trade_state = trade.read();
+    let current_send = &trade_state.send_trade;
 
-    let buffer_id = get_or_init_buffer_id();
-    let mut state = get_buffer(&buffer_id).unwrap_or_default();
-
-    if state.step == 0 || state.step > 2 {
-        state.step = 1;
-        update_buffers(
-            &buffer_id,
-            state.base_asset.clone(),
-            state.quote_asset.clone(),
-            state.amount.clone(),
-            state.limit_price.clone(),
-            state.flags.clone(),
-            state.passphrase.clone(),
-            state.seed.clone(),
-            state.step,
-            state.done,
-            state.error.clone(),
-            state.fee_percentage,
-            state.search_query.clone(),
-            state.input_mode.clone(),
-        );
+    let on_back_click = move |_| {
+    if let Ok(mut ctx) = Clipboard::new() {
+        let _ = ctx.set_text("");
     }
 
-    let mut should_close = false;
-
-    let screen_size = ui.ctx().input(|i| i.screen_rect.size());
-    let modal_size = Vec2::new(
-        (screen_size.x * 0.6).clamp(400.0, 800.0),
-        (screen_size.y * 0.5).clamp(300.0, 600.0),
-    );
-    let pos = Pos2::new(
-        (screen_size.x - modal_size.x) / 2.0,
-        (screen_size.y - modal_size.y) / 2.0,
-    );
-
-    Area::new(egui::Id::new(format!("trade_overlay_{}", buffer_id)))
-        .fixed_pos(pos)
-        .anchor(Align2::CENTER_CENTER, Vec2::splat(0.0))
-        .show(ui.ctx(), |ui| {
-            ui.painter().rect_filled(
-                ui.ctx().input(|i| i.screen_rect),
-                0.0,
-                Color32::from_black_alpha(200),
-            );
-
-            Frame::group(ui.style())
-                .fill(modal_fill(is_dark_mode))
-                .stroke(modal_stroke())
-                .outer_margin(0.0)
-                .inner_margin(10.0)
-                .show(ui, |ui| {
-                    ui.set_min_size(modal_size);
-                    ui.set_max_size(modal_size);
-
-                    close_button(ui, &buffer_id, &mut should_close, is_dark_mode);
-
-                    ui.allocate_ui_with_layout(
-                        modal_size,
-                        egui::Layout::top_down(egui::Align::Center),
-                        |ui| {
-                            let title_font_size = (modal_size.x * 0.05).clamp(16.0, 20.0);
-                            ui.label(
-                                RichText::new(format!("Trade Modal - Step {}", state.step))
-                                    .size(title_font_size)
-                                    .color(text_color(is_dark_mode)),
-                            );
-                            match state.step {
-                                1 => step1::render(ui, &mut state, &buffer_id),
-                                2 => step2::render(ui, &mut state, &buffer_id, commands_tx.clone()),
-                                _ => {
-                                    ui.label(
-                                        RichText::new("Invalid step")
-                                            .color(text_color(is_dark_mode))
-                                            .size(title_font_size),
-                                    );
-                                }
-                            }
-                        },
-                    );
+    trade.with_mut(|state: &mut SignTradeState| {
+        if let Some(ref mut send) = state.send_trade {
+            if send.step == 1 {
+                
+                xrp_modal.with_mut(|m| {
+                    // Go back to the bookmarked view 
+                    m.view_type = m.last_view.clone().unwrap();
                 });
+                state.send_trade = None;
+                // ----------------------------------
+            } else {
+                send.step -= 1;
+            }
+            }
         });
+    };
 
-    let is_done = state.done;
-    if should_close || is_done {
-        clear_all_buffers();
-        clear_buffer(&buffer_id);
-        let _ = xrp_modal_tx.send(XRPModalState {
-            import_wallet: None,
-            create_wallet: None,
-            view_type: ActiveView::XRP,
-        });
-    } else {
-        update_buffers(
-            &buffer_id,
-            state.base_asset,
-            state.quote_asset,
-            state.amount,
-            state.limit_price,
-            state.flags,
-            state.passphrase,
-            state.seed,
-            state.step,
-            state.done,
-            state.error,
-            state.fee_percentage,
-            state.search_query,
-            state.input_mode,
-        );
+    rsx! {
+        style { {r#"
+            .send-container {
+                display: flex;
+                flex-direction: column;
+                width: 100%;
+                position: relative;
+            }
+            .content-wrapper {
+                flex: 1;
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                width: 100%;
+            }
+            .back-button-container {
+                position: absolute;
+                top: 0.75rem;
+                left: 0.75rem;
+                cursor: pointer;
+                z-index: 10;
+            }
+        "#} }
+
+        div { class: "send-container",
+            div {
+                class: "back-button-container",
+                onclick: on_back_click,
+                styles::previous_icon_button { text_color: "#fff".to_string() }
+            }
+div { class: "content-wrapper",
+                if let Some(trade_state) = current_send {
+                    match trade_state.step {
+                        1 => rsx! { step1::view {} },
+                        2 => rsx! { step2::view {} }, // We will build step2 next
+                        3 => rsx! { step3::view {} },
+                        _ => rsx! { div { "Step {trade_state.step} not implemented" } }
+                    }
     }
-
-    should_close || is_done
+}
+        }
+    }
 }

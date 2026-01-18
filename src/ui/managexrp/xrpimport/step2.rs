@@ -1,175 +1,99 @@
-use egui::{Ui, RichText, Color32, Frame, Margin};
-use xrpl::wallet::Wallet;
-use keyring::Entry;
-use serde_json;
-use crate::channel::{XRPModalState, ProgressState, WSCommand, XRPImport, ActiveView};
-use crate::encrypt::encrypt_data;
-use super::{buffers, styles};
-use zeroize::Zeroize;
-use tokio::sync::mpsc;
+use dioxus::prelude::*;
+use crate::context::{GlobalContext, XrpContext};
+use crate::ui::managexrp::xrpimport::xrpimportlogic::XRPImportLogic;
+use zeroize::{Zeroizing};
 
-pub fn render(ui: &mut Ui, import_state: &mut XRPImport, buffer_id: &str, commands_tx: mpsc::Sender<WSCommand>) {
-    let xrp_modal_tx = crate::channel::CHANNEL.xrp_modal_tx.clone();
-    let is_dark_mode = crate::channel::CHANNEL.theme_user_rx.borrow().0;
-    let (seed_buffer, mut passphrase_buffer) = buffers::get_buffer(buffer_id);
+#[component]
+pub fn view() -> Element {
+    let global = use_context::<GlobalContext>();
+    let mut xrp_ctx = use_context::<XrpContext>();
+    
+    let mut bip39_buffer = use_signal(|| String::new());
+    let mut encryption_buffer = use_signal(|| String::new());
 
-    ui.label(RichText::new("Enter your passphrase to encrypt the wallet.").size(16.0).color(styles::text_color(is_dark_mode)));
-    ui.add_space(5.0);
+   let on_import_click = move |_| {
+        // 1. Wrap inputs IMMEDIATELY
+        let b_pass = Zeroizing::new(bip39_buffer().trim().to_string());
+        let e_pass = Zeroizing::new(encryption_buffer().trim().to_string());
+        
+        // 2. Extract existing Zeroizing guard safely
+        let seed_opt = xrp_ctx.wallet_process.read()
+            .import_wallet.as_ref()
+            .and_then(|w| w.seed.clone());
 
-    let pass_edit = super::styles::styled_text_edit(ui, &mut passphrase_buffer, is_dark_mode, true);
-    if pass_edit.changed() {
-        buffers::update_buffer(buffer_id, seed_buffer.clone(), passphrase_buffer.clone());
-        import_state.error = None;
-    }
-    ui.add_space(5.0);
-
-    if let Some(error) = &import_state.error {
-        ui.colored_label(Color32::RED, error);
-        ui.add_space(5.0);
-    }
-
-    ui.add_space(5.0);
-    // Modernized Continue Button
-    ui.vertical_centered(|ui| {
-        let original_visuals = ui.visuals().clone();
-        let text_color = ui.style().visuals.text_color();
-        if !is_dark_mode {
-            ui.visuals_mut().widgets.inactive.fg_stroke = egui::Stroke::new(1.0, text_color);
-            ui.visuals_mut().widgets.active.fg_stroke = egui::Stroke::new(2.0, text_color);
-        }
-        Frame::new() // egui 0.31.1, no ID argument
-            .inner_margin(Margin::symmetric(8, 4))
-            .show(ui, |ui| {
-                let continue_button = ui.add(
-                    egui::Button::new(RichText::new("Continue").size(14.0).color(text_color))
-                        .min_size(egui::Vec2::new(100.0, 28.0)),
-                );
-                if continue_button.clicked() {
-                    let mut seed = seed_buffer.trim().to_string();
-                    let mut passphrase = passphrase_buffer.trim().to_string();
-                    if seed.is_empty() {
-                        import_state.error = Some("Seed cannot be empty.".to_string());
-                        let _ = xrp_modal_tx.send(XRPModalState {
-                            import_wallet: Some(import_state.clone()),
-                            create_wallet: None,
-                            view_type: ActiveView::XRP,
-                        });
-                        // Zeroize and clear buffers on error
-                        seed.zeroize();
-                        passphrase.zeroize();
-                        buffers::clear_buffer(buffer_id);
-                        ui.ctx().request_repaint();
-                        return;
+        // 3. SECURE CHECK & SPAWN (No unwrap)
+        if let Some(seed_guard) = seed_opt {
+            // Peek strictly for validation
+            if seed_guard.is_empty() || e_pass.len() < 10 {
+                 xrp_ctx.wallet_process.with_mut(|state| {
+                    if let Some(ref mut import) = state.import_wallet {
+                        import.error = Some("Check mnemonic and encryption (min 10).".to_string());
                     }
+                });
+                return;
+            }
 
-                    let _ = crate::channel::CHANNEL.progress_tx.send(Some(ProgressState {
-                        progress: 0.0,
-                        message: "Starting wallet import".to_string(),
-                    }));
-                    ui.ctx().request_repaint();
+            // Move GUARDS into logic
+            tokio::spawn(XRPImportLogic::process(
+                seed_guard, // Zeroizing<String>
+                b_pass,     // Zeroizing<String>
+                e_pass,     // Zeroizing<String>
+                global.ws_tx.clone()
+            ));
+        } else {
+            return; // Handle missing seed edge case
+        }
 
-                    let modal_tx = xrp_modal_tx.clone();
-                    // REMOVED: wallet_balance_tx clone (no longer used here)
-                    let progress_tx = crate::channel::CHANNEL.progress_tx.clone();
-                    let buffer_id_clone = buffer_id.to_string();
-                    let import_state_clone = import_state.clone();
-                    let commands_tx_clone = commands_tx.clone();
+        // 4. WIPE UI
+        bip39_buffer.set(String::new());
+        encryption_buffer.set(String::new());
+        
+        xrp_ctx.wallet_process.with_mut(|state| {
+            if let Some(ref mut import) = state.import_wallet {
+                import.seed = None; 
+            }
+        });
+    };
 
-                    std::thread::spawn(move || {
-                        let mut new_state = import_state_clone;
-                        match Wallet::new(&seed, 0) {
-                            Ok(wallet) => {
-                                match encrypt_data(passphrase.clone(), seed.clone()) {
-                                    Ok((encrypted_seed, salt, iv)) => {
-                                        let _ = progress_tx.send(Some(ProgressState {
-                                            progress: 0.5,
-                                            message: "Encrypting wallet data".to_string(),
-                                        }));
-                                        let sensitive_data = serde_json::to_string(&(encrypted_seed, salt, iv))
-                                            .expect("Failed to serialize sensitive data");
-                                        let entry = Entry::new("rust_wallet", &wallet.classic_address)
-                                            .expect("Failed to access keyring");
-                                        entry.set_password(&sensitive_data)
-                                            .expect("Failed to store in keyring");
+    // Pull error state for the UI
+    let import_state = xrp_ctx.wallet_process.read();
+    let current_error = import_state.import_wallet.as_ref().and_then(|i| i.error.clone());
+    rsx! {
+        div {
+            style: "display: flex; flex-direction: column; align-items: center; width: 100%;",
 
-                                        // REMOVED: json_storage::write_json (defer to response)
+            div { style: "font-size: 1.5rem; margin: 0; margin-bottom: 0.5rem;", "Enter BIP39 Passphrase (Optional)" }
+            div { style: "font-size: 1rem; color: #888; margin-bottom: 1.5rem;", "If you have a 25th word, enter it here." }
 
-                                        // REMOVED: wallet_balance_tx.send (defer to response)
-
-                                        let command = WSCommand {
-                                            command: "import_wallet".to_string(),
-                                            wallet: Some(wallet.classic_address.clone()),
-                                            recipient: None,
-                                            amount: None,
-                                            passphrase: None,
-                                            trustline_limit: None,
-                                            tx_type: None,
-                                            taker_pays: None,
-                                            taker_gets: None,
-                                            seed: None,
-                                            flags: None,
-                                            wallet_type: None,
-                                        };
-
-                                        if let Err(e) = commands_tx_clone.try_send(command) {
-                                            println!("Failed to send import_wallet command: {}", e);
-                                            new_state.error = Some(format!("Failed to send command: {}", e)); // Set error for modal
-                                            let _ = modal_tx.send(XRPModalState {  // Send error modal
-                                                import_wallet: Some(new_state),
-                                                create_wallet: None,
-                                                view_type: ActiveView::XRP,
-                                            });
-                                            let _ = progress_tx.send(Some(ProgressState {
-                                                progress: 1.0,
-                                                message: format!("Error: Failed to send command: {}", e),
-                                            }));
-                                        } else {
-                                            println!("Sent import_wallet command for address: {}", wallet.classic_address);
-                                            // Modal stays open; UI reacts to progress 1.0 success for close
-                                            new_state.done = true;
-                                            let _ = modal_tx.send(XRPModalState {
-                                                import_wallet: Some(new_state),
-                                                create_wallet: None,
-                                                view_type: ActiveView::XRP,
-                                            });
-                                        }
-
-                                        // REMOVED: new_state.done = true; and modal_tx.send (defer to response or UI)
-                                    }
-                                    Err(e) => {
-                                        new_state.error = Some(format!("Encryption failed: {}", e));
-                                        let _ = modal_tx.send(XRPModalState {
-                                            import_wallet: Some(new_state),
-                                            create_wallet: None,
-                                            view_type: ActiveView::XRP,
-                                        });
-                                        let _ = progress_tx.send(Some(ProgressState {
-                                            progress: 1.0,
-                                            message: format!("Error: Encryption failed: {}", e),
-                                        }));
-                                    }
-                                }
-                            }
-                            Err(e) => {
-                                new_state.error = Some(format!("Wallet import failed: {}", e));
-                                let _ = modal_tx.send(XRPModalState {
-                                    import_wallet: Some(new_state),
-                                    create_wallet: None,
-                                    view_type: ActiveView::XRP,
-                                });
-                                let _ = progress_tx.send(Some(ProgressState {
-                                    progress: 1.0,
-                                    message: format!("Error: Wallet import failed: {}", e),
-                                }));
-                            }
-                        }
-                        // Zeroize sensitive data in the thread
-                        seed.zeroize();
-                        passphrase.zeroize();
-                        buffers::clear_buffer(&buffer_id_clone);
-                    });
+            input {
+                style: "width: 100%; max-width: 25rem; height: 2rem; padding: 0.3125rem; background-color: transparent; border: 1px solid #444; border-radius: 0.25rem; font-size: 1.25rem; margin-bottom: 2rem;",
+                value: "{bip39_buffer()}",
+                oninput: move |e| {
+                    bip39_buffer.set(e.value());
                 }
-            });
-        ui.visuals_mut().widgets = original_visuals.widgets;
-    });
+            }
+
+            div { style: "font-size: 1.5rem; margin: 0; margin-bottom: 0.5rem;", "Encryption Passphrase" }
+            div { style: "font-size: 1rem; color: #888; margin-bottom: 1.5rem;", "Password to encrypt your wallet locally." }
+
+            input {
+                style: "width: 100%; max-width: 25rem; height: 2rem; padding: 0.3125rem; background-color: transparent; border: 1px solid #444; border-radius: 0.25rem; font-size: 1.25rem; margin-bottom: 1rem;",
+                value: "{encryption_buffer()}",
+                oninput: move |e| {
+                    encryption_buffer.set(e.value());
+                }
+            }
+
+            if let Some(err) = current_error {
+                div { style: "color: #ff4d4d; margin-bottom: 1rem; font-size: 0.875rem; font-weight: bold;", "{err}" }
+            }
+
+           button {
+                style: "width: 8.75rem; height: 2.25rem; background-color: #333; color: white; border: none; 
+        border-radius: 1.375rem; font-size: 1rem; display: flex; cursor: pointer; justify-content: center; align-items: center; margin-top: 1rem;",
+                onclick: on_import_click,
+                "Import Wallet"
+            }
+        }
+    }
 }

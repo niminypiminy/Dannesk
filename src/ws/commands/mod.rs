@@ -9,7 +9,6 @@ pub mod validation;
 pub mod wallet_auth;
 pub mod transaction_builder;
 pub mod transaction_sender;
-pub mod state;
 pub mod ledger;
 pub mod offer_create;
 pub mod getcachedbalance;

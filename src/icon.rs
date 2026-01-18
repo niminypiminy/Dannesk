@@ -1,15 +1,20 @@
-use eframe::egui;
-use egui_extras::image::load_image_bytes;
+use std::error::Error;
 
-pub fn load_icon() -> Result<egui::IconData, Box<dyn std::error::Error>> {
-    let image_data = include_bytes!("icons/icon64.png");
-    let color_image = load_image_bytes(image_data)?;
-    if color_image.size[0] != 64 || color_image.size[1] != 64 {
-        return Err(format!("Icon must be 64x64, got {}x{}", color_image.size[0], color_image.size[1]).into());
-    }
-    Ok(egui::IconData {
-        rgba: color_image.pixels.into_iter().flat_map(|c| c.to_array()).collect(),
-        width: color_image.size[0] as u32,
-        height: color_image.size[1] as u32,
-    })
+pub struct IconData {
+    pub rgba: Vec<u8>,
+    pub width: u32,
+    pub height: u32,
+}
+
+pub fn load_icon() -> Result<IconData, Box<dyn Error>> {
+    
+     let icon_bytes = include_bytes!("icons/icon64.png");
+
+    // Load PNG (or any format image crate supports) from memory
+    let img = image::load_from_memory(icon_bytes)?.to_rgba8();
+
+    let (width, height) = img.dimensions();
+    let rgba = img.into_raw();
+
+    Ok(IconData { rgba, width, height })
 }

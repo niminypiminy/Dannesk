@@ -8,7 +8,7 @@ pub async fn execute(
     _current_wallet: &mut String,
     cmd: WSCommand,
 ) -> Result<(), String> {
-    if let Some(wallet) = cmd.wallet {
+    if let Some(wallet) = &cmd.wallet {
         let msg_json = json!({ "command": "get_cached_balance", "wallet": wallet });
         connection.send(Message::Text(msg_json.to_string())).await?;
         Ok(())
@@ -51,7 +51,6 @@ pub async fn process_response(message: Message, _current_wallet: &str) -> Result
                 .and_then(|e| e.parse::<f64>().ok())
                 .unwrap_or(0.0);
 
-            let xrp_active = data.get("xrp_active").and_then(|a| a.as_bool()).unwrap_or(false);
             let has_rlusd = data.get("has_rlusd").and_then(|h| h.as_bool()).unwrap_or(false);
             let has_euro = data.get("has_euro").and_then(|h| h.as_bool()).unwrap_or(false);
             let trustline_limit = data.get("trustline_limit")
@@ -95,9 +94,9 @@ pub async fn process_response(message: Message, _current_wallet: &str) -> Result
                 Vec::new()
             };
 
-            let (_, _, _, private_key_deleted) = *CHANNEL.wallet_balance_rx.borrow();
+            let (_, _, private_key_deleted) = *CHANNEL.wallet_balance_rx.borrow();
             CHANNEL.wallet_balance_tx
-                .send((balance_xrp, Some(wallet.to_string()), xrp_active, private_key_deleted))
+                .send((balance_xrp, Some(wallet.to_string()), private_key_deleted))
                 .map_err(|e| format!("Failed to send wallet balance: {}", e))?;
 
             CHANNEL.rlusd_tx

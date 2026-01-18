@@ -1,190 +1,219 @@
+#![cfg_attr(windows, windows_subsystem = "windows")]
 
 const VERSION: &str = "0.5.0";
 
+
+use dioxus::prelude::*;
+use winit::dpi::LogicalSize;
+use winit::window::{WindowAttributes, Icon};
+use std::any::Any;
+use tokio::sync::mpsc;
+use tokio::runtime::Builder;
+use std::sync::OnceLock;
+
 mod ui;
 mod channel;
-mod font;
 mod theme;
-mod ws;
-mod encrypt;
-mod wallet;
-mod pin;
-mod decrypt;
-mod icon;
 mod utils;
-mod startup;
+mod pin;
+mod encrypt;
+mod decrypt;
+mod ws;     
+mod wallet; 
+mod context;
+mod startup; 
+#[cfg(target_os = "windows")]
+mod icon;
+#[cfg(target_os = "linux")]
+mod linux_icon_fix;
 
-
-use eframe::{egui, epaint::Vec2};
-use egui_extras;
-use crate::channel::{CHANNEL, WSCommand};
-use crate::ws::{run_exchange_websocket, run_crypto_websocket};
-use crate::ui::enterpin::EnterPinState;
-use crate::ui::update::UpdatePrompt;
-use crate::icon::load_icon;
+use crate::theme::{DARK_CSS, LIGHT_CSS};
+use crate::ui::enterpin::PinScreen;
+use crate::channel::{WSCommand}; 
+use crate::ws::{run_exchange_websocket, run_crypto_websocket}; 
+use crate::context::GlobalContext;
+use crate::ui::update::UpdatePrompt; 
 use crate::startup::init_startup;
-use std::time::Duration;
-use tokio::runtime::Builder;
-use tokio::sync::mpsc;
+#[cfg(target_os = "windows")]
+use crate::icon::load_icon;
+#[cfg(target_os = "linux")]
+use crate::linux_icon_fix::apply_linux_icon_and_desktop_entry;
 
+static UI_COMMANDS_TX: OnceLock<mpsc::Sender<WSCommand>> = OnceLock::new();
+
+#[derive(Clone, Copy, PartialEq, Eq)]
 enum AppState {
-    UpdatePrompt(UpdatePrompt),
-    PinEntry(EnterPinState),
-    Transition,
+    PinEntry,
     Dashboard,
-}
-
-struct CryptoApp {
-    state: AppState,
-    commands_tx: mpsc::Sender<WSCommand>,
-    exchange_shutdown_tx: mpsc::Sender<()>,
-    crypto_shutdown_tx: mpsc::Sender<()>,
-}
-
-impl CryptoApp {
-    fn new(
-        _cc: &eframe::CreationContext<'_>,
-        commands_tx: mpsc::Sender<WSCommand>,
-        exchange_shutdown_tx: mpsc::Sender<()>,
-        crypto_shutdown_tx: mpsc::Sender<()>,
-    ) -> Self {
-        let remote_version = CHANNEL.version_rx.borrow().clone();
-        let initial_state = match remote_version {
-            None => AppState::PinEntry(EnterPinState::new()),
-            Some(ref version) if version == VERSION => AppState::PinEntry(EnterPinState::new()),
-            Some(version) => AppState::UpdatePrompt(UpdatePrompt::new(version)),
-        };
-
-        Self {
-            state: initial_state,
-            commands_tx,
-            exchange_shutdown_tx,
-            crypto_shutdown_tx,
-        }
-    }
-}
-
-impl eframe::App for CryptoApp {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        let is_minimized = ctx.input(|i| i.viewport().minimized.unwrap_or(false));
-
-        let is_dark_mode = CHANNEL.theme_user_rx.borrow().0;
-        ctx.set_visuals(if is_dark_mode {
-            theme::Theme::dark_theme()
-        } else {
-            theme::Theme::white_theme()
-        });
-
-        egui::CentralPanel::default().show(ctx, |ui| {
-            match &mut self.state {
-                AppState::UpdatePrompt(update_prompt) => {
-                    if update_prompt.render_update_screen(ui) {
-                        // Trigger restart
-                        if let Ok(current_exe) = std::env::current_exe() {
-                            println!("Restarting application: {}", current_exe.display());
-                            if let Err(e) = std::process::Command::new(current_exe).spawn() {
-                                println!("Failed to restart application: {}", e);
-                            }
-                        } else {
-                            println!("Failed to get current executable path for restart");
-                        }
-                        std::process::exit(0);
-                    }
-                }
-                AppState::PinEntry(pin_state) => {
-                    if pin_state.render_pin_screen(ui) {
-                        self.state = AppState::Transition;
-                    }
-                }
-                AppState::Transition => {
-                    self.state = AppState::Dashboard;
-                }
-                AppState::Dashboard => {
-                    if let Some(new_theme_user) = ui::dashboard::render_dashboard(ui, self.commands_tx.clone()) {
-                        let _ = CHANNEL.theme_user_tx.send(new_theme_user);
-                    }
-                }
-            }
-        });
-
-        ui::modals::render_modals(ctx);
-        if !is_minimized {
-            ctx.request_repaint_after(Duration::from_millis(75));
-        }
-    }
-
-    fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
-        let exchange_shutdown_tx = self.exchange_shutdown_tx.clone();
-        let crypto_shutdown_tx = self.crypto_shutdown_tx.clone();
-        if let Ok(runtime) = tokio::runtime::Handle::try_current() {
-            runtime.spawn(async move {
-                let _ = exchange_shutdown_tx.send(()).await;
-                let _ = crypto_shutdown_tx.send(()).await;
-            });
-        }
-    }
+    UpdatePrompt,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    init_startup();
+    #[cfg(target_os = "macos")]
+    unsafe { std::env::set_var("WGPU_BACKEND", "metal"); }
+
+    #[cfg(target_os = "windows")]
+    unsafe { std::env::set_var("WGPU_BACKEND", "vulkan"); }
+
+    #[cfg(target_os = "linux")]
+    unsafe { std::env::set_var("WGPU_BACKEND", "vulkan"); }
+
+    println!("Starting main - before init_startup");
+    // We don't call init_startup() here anymore because it requires the runtime handle
+    
+    // LINUX ICON FIX — ONLY RUNS ON LINUX
+    #[cfg(target_os = "linux")]
+    apply_linux_icon_and_desktop_entry();
 
     let runtime = Builder::new_multi_thread()
         .worker_threads(4)
         .enable_all()
         .build()?;
 
-    let (commands_tx, commands_rx) = mpsc::channel(100);
+    let handle = runtime.handle().clone();
+    
+    // NOW we call init_startup with the handle so it runs in the background
+    init_startup(&handle);
+    println!("init_startup (async) triggered");
+
+    let (commands_tx, commands_rx) = mpsc::channel::<WSCommand>(100);
     let (exchange_shutdown_tx, exchange_shutdown_rx) = mpsc::channel::<()>(1);
     let (crypto_shutdown_tx, crypto_shutdown_rx) = mpsc::channel::<()>(1);
 
-    wallet::load_wallets(commands_tx.clone());
+    let _ = UI_COMMANDS_TX.set(commands_tx.clone());
+    println!("UI_COMMANDS_TX set");
 
-    let icon_data = load_icon()?;
+    let mut join_handles: Vec<tokio::task::JoinHandle<()>> = vec![];
 
-    runtime.block_on(async {
-        // Check version before starting WebSocket tasks
-        let remote_version = CHANNEL.version_rx.borrow().clone();
-        let start_websockets = match remote_version {
-            None => true, // Start WebSockets if no remote version
-            Some(ref version) if version == VERSION => true, // Start WebSockets if version matches
-            Some(_) => false, // Skip WebSockets if version mismatch
-        };
-
-        if start_websockets {
-            tokio::spawn(async {
-                if let Err(_e) = run_exchange_websocket(exchange_shutdown_rx).await {
-                    let _ = CHANNEL.exchange_ws_status_tx.send(false);
-                }
-            });
-            tokio::spawn(async {
-                if let Err(_e) = run_crypto_websocket(commands_rx, crypto_shutdown_rx).await {
-                    let _ = CHANNEL.crypto_ws_status_tx.send(false);
-                }
-            });
+    // Always spawn websockets so the app launches regardless of connection
+    println!("Spawning exchange websocket");
+    let exchange_handle = handle.spawn(async move {
+        println!("Exchange websocket task started");
+        if let Err(_e) = run_exchange_websocket(exchange_shutdown_rx).await {
+            println!("Exchange websocket error: {:?}", _e);
         }
+        println!("Exchange websocket task ended");
+    });
+    join_handles.push(exchange_handle);
 
-        let options = eframe::NativeOptions {
-            viewport: egui::ViewportBuilder::default()
-                .with_inner_size(Vec2::new(900.0, 700.0))
-                .with_min_inner_size(Vec2::new(800.0, 500.0))
-                .with_icon(icon_data),
-            ..Default::default()
-        };
+    let commands_rx_clone = commands_rx;
+    println!("Spawning crypto websocket");
+    let crypto_handle = handle.spawn(async move {
+        println!("Crypto websocket task started");
+        if let Err(_e) = run_crypto_websocket(commands_rx_clone, crypto_shutdown_rx).await {
+            println!("Crypto websocket error: {:?}", _e);
+        }
+        println!("Crypto websocket task ended");
+    });
+    join_handles.push(crypto_handle);
+    
+    let tx_clone = commands_tx.clone();
+    println!("Spawning wallet load");
+    let wallet_handle = handle.spawn_blocking(move || {
+        println!("Wallet load task started");
+        wallet::load_wallets(tx_clone); 
+        println!("Wallet load task ended");
+    });
+    join_handles.push(wallet_handle);
 
-        eframe::run_native(
-            "Dannesk",
-            options,
-            Box::new(|cc| {
-                font::setup_custom_font(&cc.egui_ctx);
-                egui_extras::install_image_loaders(&cc.egui_ctx);
-                Ok(Box::new(CryptoApp::new(
-                    cc,
-                    commands_tx,
-                    exchange_shutdown_tx,
-                    crypto_shutdown_tx,
-                )))
-            }),
-        )
-        .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)
-    })
+    #[cfg(not(target_os = "linux"))]
+    let icon_data = load_icon()?;
+    #[cfg(not(target_os = "linux"))]
+    let window_icon = Some(Icon::from_rgba(icon_data.rgba, icon_data.width, icon_data.height)?);
+    #[cfg(target_os = "linux")]
+    let window_icon: Option<Icon> = None;
+
+    #[cfg(target_os = "windows")]
+    let default_size = LogicalSize::new(960.0, 720.0);
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    let default_size = LogicalSize::new(1200.0, 900.0);
+
+    let window_attr = WindowAttributes::default()
+        .with_title("Dannesk")
+        .with_inner_size(default_size)
+        .with_resizable(true)
+        .with_window_icon(window_icon);
+
+    #[cfg(target_os = "linux")]
+    {
+        let session_type = std::env::var("XDG_SESSION_TYPE").unwrap_or_default();
+        if session_type == "wayland" {
+            use winit::platform::wayland::WindowAttributesExtWayland;
+            window_attr = window_attr.with_name("dannesk", "dannesk");
+        } else {
+            use winit::platform::x11::WindowAttributesExtX11;
+            window_attr = window_attr.with_name("dannesk", "dannesk");
+        }
+    }
+
+    println!("Launching Dioxus app");
+    dioxus_native::launch_cfg(App, vec![], vec![Box::new(window_attr) as Box<dyn Any>]);
+    println!("Dioxus app exited");
+
+    handle.block_on(async {
+        println!("Sending websocket shutdown signals.");
+        let _ = exchange_shutdown_tx.send(()).await;
+        let _ = crypto_shutdown_tx.send(()).await;
+        for jh in join_handles {
+            let _ = jh.await;
+        }
+        println!("All tasks completed.");
+    });
+
+    Ok(())
+}
+
+#[component]
+fn App() -> Element {
+    let tx = UI_COMMANDS_TX.get().expect("UI_COMMANDS_TX not set").clone();
+    context::setup_contexts(tx);
+
+    let global = use_context::<GlobalContext>();
+    let is_dark = global.theme_user.read().0;
+    
+    // Track if the user has successfully unlocked the PIN
+    let mut unlocked = use_signal(|| false);
+    
+    // Read the version signal directly. This ensures that if the background
+    // fetch finishes 2 seconds after launch, this component re-renders.
+    let remote_version = global.version.read();
+    
+    // Determine the current view
+    let current_view = match remote_version.as_ref() {
+        // FORCE update if version exists and doesn't match
+        Some(v) if v != VERSION => AppState::UpdatePrompt,
+        // Otherwise, check if we are in Dashboard or PinEntry
+        _ => if *unlocked.read() { AppState::Dashboard } else { AppState::PinEntry },
+    };
+
+    let theme_css = if is_dark { DARK_CSS } else { LIGHT_CSS };
+
+    let zoom = if cfg!(target_os = "windows") { "zoom: 0.8;" } else { "" };
+
+    rsx! {
+        style { "body {{ margin: 0; padding: 0; }} {theme_css}" }
+        // 1. OUTER WRAPPER: Always 100vh, holds the background colors/classes.
+        div {
+            class: "theme-root",
+            class: if is_dark { "dark" }, 
+            style: "display: flex; flex-direction: column; height: 100vh; width: 100%; overflow: hidden;",
+
+            // 2. INNER CONTENT WRAPPER: This is where the zoom lives.
+            // margin: auto ensures the zoomed content fills the parent available space.
+            div {
+                style: "display: flex; flex-direction: column; flex: 1; width: 100%; margin: auto; {zoom}",
+
+
+            match current_view {
+                AppState::UpdatePrompt => rsx! { UpdatePrompt {} },
+                AppState::PinEntry => rsx! {
+                    PinScreen { on_unlock: move |_| unlocked.set(true) }
+                },
+                AppState::Dashboard => rsx! {
+                    ui::dashboard::render_dashboard {}
+                }
+            }
+        }
+        }
+    }
 }

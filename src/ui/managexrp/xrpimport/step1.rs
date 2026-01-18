@@ -1,59 +1,132 @@
-use egui::{Ui, RichText, Color32, Frame, Margin};
-use crate::channel::{CHANNEL, XRPModalState, XRPImport, ActiveView};
-use super::{buffers, styles};
+use dioxus::prelude::*;
+use crate::context::XrpContext;
+use crate::channel::XRPWalletProcessState;
+use zeroize::{Zeroizing};
 
-pub fn render(ui: &mut Ui, import_state: &mut XRPImport, buffer_id: &str) {
-    let xrp_modal_tx = CHANNEL.xrp_modal_tx.clone();
-    let is_dark_mode = CHANNEL.theme_user_rx.borrow().0;
-    let (mut seed_buffer, passphrase_buffer) = buffers::get_buffer(buffer_id);
+#[component]
+pub fn view() -> Element {
+    let xrp_ctx = use_context::<XrpContext>();
+    let mut wallet_process = xrp_ctx.wallet_process;
+    
+    let mut seed_words = use_signal(|| vec![String::new(); 24]);
+    let mut error_msg = use_signal(|| None::<String>);
 
-    ui.label(RichText::new("Enter your XRP seed (private key).").size(16.0).color(styles::text_color(is_dark_mode)));
-    ui.add_space(5.0);
+    let on_continue = move |_| {
+        let current_words = seed_words();
+        let word_count = current_words.iter().filter(|w| !w.is_empty()).count();
 
-    let seed_edit = styles::styled_text_edit(ui, &mut seed_buffer, is_dark_mode, false);
-    if seed_edit.changed() {
-        buffers::update_buffer(buffer_id, seed_buffer.clone(), passphrase_buffer.clone());
-        import_state.error = None;
-    }
-    ui.add_space(5.0);
-
-    if let Some(error) = &import_state.error {
-        ui.colored_label(Color32::RED, error);
-        ui.add_space(5.0);
-    }
-
-    ui.add_space(5.0);
-    // Modernized Continue Button
-    ui.vertical_centered(|ui| {
-        let original_visuals = ui.visuals().clone();
-        let text_color = ui.style().visuals.text_color();
-        if !is_dark_mode {
-            ui.visuals_mut().widgets.inactive.fg_stroke = egui::Stroke::new(1.0, text_color);
-            ui.visuals_mut().widgets.active.fg_stroke = egui::Stroke::new(2.0, text_color);
+        if word_count != 24 {
+            error_msg.set(Some("Mnemonic must be exactly 24 words.".to_string()));
+            return;
         }
-        Frame::new() // egui 0.31.1, no ID argument
-            .inner_margin(Margin::symmetric(8, 4))
-            .show(ui, |ui| {
-                let continue_button = ui.add(
-                    egui::Button::new(RichText::new("Continue").size(14.0).color(text_color))
-                        .min_size(egui::Vec2::new(100.0, 28.0)),
-                );
-                if continue_button.clicked() {
-                    let trimmed_seed = seed_buffer.trim();
-                    if trimmed_seed.len() < 29 || !trimmed_seed.starts_with('s') {
-                        import_state.error = Some("Invalid seed format. Must start with 's' and be at least 29 characters.".to_string());
-                    } else {
-                        import_state.step = 2;
+
+let seed_phrase = Zeroizing::new(current_words.join(" "));
+
+        wallet_process.with_mut(|state: &mut XRPWalletProcessState | {
+            if let Some(ref mut import) = state.import_wallet {
+                import.seed = Some(seed_phrase);
+                import.error = None;
+                import.step = 2; 
+            }
+        });
+    };
+
+    rsx! {
+        div {
+            style: "
+                display: flex; 
+                flex-direction: column; 
+                width: 100%; 
+                align-items: center;",
+            
+            div { 
+                style: "font-size: 1.5rem; margin: 0; margin-bottom: 0.25rem;",
+                "Enter your 24-word mnemonic phrase:" 
+            }
+            div { 
+                style: "font-size: 1rem; color: #888; margin-bottom: 1.5rem;",
+                "For security reasons, only 24-word mnemonics are supported."
+            }
+
+            div {
+                style: "
+                    display: grid; 
+                    grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr)); 
+                    gap: 0.25rem;
+                    width: 100%; 
+                    max-width: 31.5rem;
+                    margin-left: auto;
+                    margin-right: auto;
+                ", 
+                
+                for i in 0..24 {
+                    div {
+                        key: "{i}",
+                        input {
+                            style: "
+                                display: block;
+                                box-sizing: border-box;
+                                width: 100%; 
+                                height: 2rem; 
+                                padding: 0.3125rem; 
+                                background-color: transparent; 
+                                border: 1px solid #444; 
+                                border-radius: 0.25rem;
+                                font-size: 0.875rem;
+                            ",
+                            value: "{seed_words()[i]}",
+                            spellcheck: false,
+                            oninput: move |evt: Event<FormData>| {
+    // 1. CLIP: Remove newlines immediately to stop the vertical layout glitch
+    // 2. CLEAN: Trim leading/trailing whitespace
+    let val = evt.value().replace(['\n', '\r'], " ");
+    error_msg.set(None);
+
+    if val.trim().contains(' ') {
+        // Multi-word paste detected
+        let words: Vec<String> = val
+            .split_whitespace()
+            .map(|s| s.to_string())
+            .collect();
+        
+        let mut current_words = seed_words.peek().clone();
+        for (j, word) in words.iter().enumerate() {
+            if i + j < 24 {
+                // Ensure individual words are also clean
+                current_words[i + j] = word.trim().to_string();
+            }
+        }
+        // Commit the whole grid update at once
+        seed_words.set(current_words);
+    } else {
+        // Single word typing/paste
+        let mut current_words = seed_words.peek().clone();
+        current_words[i] = val.trim().to_string();
+        seed_words.set(current_words);
+    }
+}
+                        }
                     }
-                    buffers::update_buffer(buffer_id, seed_buffer.clone(), passphrase_buffer);
-                    let _ = xrp_modal_tx.send(XRPModalState {
-                        import_wallet: Some(import_state.clone()),
-                        create_wallet: None,
-                        view_type: ActiveView::XRP,
-                    });
-                    ui.ctx().request_repaint();
                 }
-            });
-        ui.visuals_mut().widgets = original_visuals.widgets;
-    });
+            }
+
+            if let Some(err) = error_msg() {
+                div {
+                    style: "color: #ff4d4d; margin-top: 1rem; font-size: 1rem; font-weight: bold;",
+                    "{err}"
+                }
+            }
+
+            div { style: "height: 2rem;" } 
+
+            button {
+                style: "
+                    width: 8.75rem; height: 2.25rem; background-color: #333; color: white; border: none; 
+        border-radius: 1.375rem; font-size: 1rem; display: flex; cursor: pointer; justify-content: center; align-items: center; margin-top: 1rem;
+                ",
+                onclick: on_continue,
+                "Continue"
+            }
+        }
+    }
 }

@@ -9,7 +9,7 @@ pub const MAX_RECONNECT_ATTEMPTS: u32 = 10;
 pub const RECONNECT_BACKOFF_SECONDS: u64 = 60;
 
 pub async fn run_exchange_websocket(mut shutdown_rx: Receiver<()>) -> Result<(), String> {
-    let url = "";
+    let url = "wss://rates.dannesk.com/rates";
     let rates_tx = CHANNEL.rates_tx.clone();
     let ws_status_tx = CHANNEL.exchange_ws_status_tx.clone();
 

@@ -1,214 +1,105 @@
-use egui::{Ui, RichText, Color32, Frame, Margin};
-use bip39::Mnemonic;
-use bitcoin::bip32::{Xpriv, DerivationPath};
-use bitcoin::{Network, CompressedPublicKey};
-use bitcoin::secp256k1::Secp256k1;
-use bitcoin::address::Address;
-use keyring::Entry;
-use serde_json;
-use std::str::FromStr;
-use crate::channel::{BTCModalState, ProgressState, WSCommand, BTCImport, BTCActiveView};
-use crate::encrypt::encrypt_data;
-use super::{buffers, styles};
-use zeroize::Zeroize;
-use crate::utils::json_storage;
-use tokio::sync::mpsc;
+// src/ui/managebtc/btccreate/step2.rs
+use dioxus::prelude::*;
+use crate::context::{GlobalContext, BtcContext};
+use crate::ui::managebtc::btccreate::btccreatelogic::BTCCreateLogic;
+use zeroize::Zeroizing;
 
-pub fn render(ui: &mut Ui, create_state: &mut BTCImport, buffer_id: &str, commands_tx: mpsc::Sender<WSCommand>) {
-    let btc_modal_tx = crate::channel::CHANNEL.btc_modal_tx.clone();
-    let is_dark_mode = crate::channel::CHANNEL.theme_user_rx.borrow().0;
+#[component]
+pub fn view() -> Element {
+    let global = use_context::<GlobalContext>();
+    let mut btc_ctx = use_context::<BtcContext>();
+    
+    let mut bip39_buffer = use_signal(|| String::new());
+    let mut encryption_buffer = use_signal(|| String::new());
 
-    let mut passphrase_buffer = buffers::get_buffer(buffer_id);
+    let on_create_click = move |_| {
+        // 1. Wrap inputs IMMEDIATELY
+        let b_pass = Zeroizing::new(bip39_buffer().trim().to_string());
+        let e_pass = Zeroizing::new(encryption_buffer().trim().to_string());
+        
+        // 2. Extract the Generated Seed (from Step 1) safely
+        let seed_opt = btc_ctx.btc_wallet_process.read()
+            .create_wallet.as_ref()
+            .and_then(|w| w.seed.clone());
 
-    ui.label(RichText::new("Enter Passphrase").size(16.0).color(styles::text_color(is_dark_mode)));
-    ui.add_space(5.0);
-    ui.label("Enter a passphrase to encrypt your wallet.");
-    ui.add_space(5.0);
-
-    let pass_edit = super::styles::styled_text_edit(ui, &mut passphrase_buffer, is_dark_mode);
-    if pass_edit.changed() {
-        buffers::update_buffer(buffer_id, passphrase_buffer.clone());
-        create_state.error = None;
-    }
-
-    if let Some(error) = &create_state.error {
-        ui.colored_label(Color32::RED, error);
-        ui.add_space(5.0);
-    }
-
-    ui.add_space(10.0);
-    // Modernized Continue Button
-    ui.vertical_centered(|ui| {
-        let original_visuals = ui.visuals().clone();
-        let text_color = ui.style().visuals.text_color();
-        if !is_dark_mode {
-            ui.visuals_mut().widgets.inactive.fg_stroke = egui::Stroke::new(1.0, text_color);
-            ui.visuals_mut().widgets.active.fg_stroke = egui::Stroke::new(2.0, text_color);
-        }
-        Frame::new() // egui 0.31.1, no ID argument
-            .inner_margin(Margin::symmetric(8, 4))
-            .show(ui, |ui| {
-                let create_button = ui.add(
-                    egui::Button::new(RichText::new("Continue").size(14.0).color(text_color))
-                        .min_size(egui::Vec2::new(100.0, 28.0)),
-                );
-                if create_button.clicked() {
-                    let trimmed_passphrase = passphrase_buffer.trim().to_string();
-                    if trimmed_passphrase.len() < 6 {
-                        create_state.error = Some("Passphrase must be at least 6 characters.".to_string());
-                        let _ = btc_modal_tx.send(BTCModalState {
-                            create_wallet: Some(create_state.clone()),
-                            import_wallet: None,
-                            view_type: BTCActiveView::BTC,
-                        });
-                        let _ = crate::channel::CHANNEL.progress_tx.send(Some(ProgressState {
-                            progress: 0.0,
-                            message: "Error: Passphrase too short".to_string(),
-                        }));
-                    } else if let Some(seed) = create_state.seed.clone() {
-                        let _ = crate::channel::CHANNEL.progress_tx.send(Some(ProgressState {
-                            progress: 0.0,
-                            message: "Starting wallet creation".to_string(),
-                        }));
-                        ui.ctx().request_repaint();
-
-                        let modal_tx = btc_modal_tx.clone();
-                        let bitcoin_wallet_tx = crate::channel::CHANNEL.bitcoin_wallet_tx.clone();
-                        let progress_tx = crate::channel::CHANNEL.progress_tx.clone();
-                        let buffer_id_clone = buffer_id.to_string();
-                        let create_state_clone = create_state.clone();
-                        let seed_clone = seed.clone();
-                        let commands_tx_clone = commands_tx.clone();
-
-                        std::thread::spawn(move || {
-                            let mut new_state = create_state_clone;
-
-                            // Validate mnemonic and derive address
-                            let mnemonic = match Mnemonic::from_str(&seed_clone) {
-                                Ok(m) => m,
-                                Err(e) => {
-                                    let _ = progress_tx.send(Some(ProgressState {
-                                        progress: 0.0,
-                                        message: format!("Error: Invalid mnemonic: {}", e),
-                                    }));
-                                    new_state.error = Some(format!("Invalid mnemonic: {}", e));
-                                    let _ = modal_tx.send(BTCModalState {
-                                        create_wallet: Some(new_state),
-                                        import_wallet: None,
-                                        view_type: BTCActiveView::BTC,
-                                    });
-                                    return;
-                                }
-                            };
-
-                            // Derive address
-                            let seed = mnemonic.to_seed("");
-                            let network = Network::Bitcoin;
-                            let secp = Secp256k1::new();
-                            let xpriv = Xpriv::new_master(network, &seed).expect("Failed to create master key");
-                            let derivation_path = DerivationPath::from_str("m/84'/0'/0'/0/0").expect("Invalid derivation path");
-                            let child_xpriv = xpriv.derive_priv(&secp, &derivation_path).expect("Failed to derive private key");
-                            let public_key = child_xpriv.to_priv().public_key(&secp);
-                            let compressed_pubkey = CompressedPublicKey(public_key.inner);
-                            let address = Address::p2wpkh(&compressed_pubkey, network);
-
-                            // Encrypt mnemonic
-                            let (encrypted_mnemonic, salt, iv) = match encrypt_data(trimmed_passphrase, seed_clone.clone()) {
-                                Ok(data) => data,
-                                Err(e) => {
-                                    let _ = progress_tx.send(Some(ProgressState {
-                                        progress: 0.0,
-                                        message: format!("Error: Encryption failed: {}", e),
-                                    }));
-                                    new_state.error = Some(format!("Encryption failed: {}", e));
-                                    let _ = modal_tx.send(BTCModalState {
-                                        create_wallet: Some(new_state),
-                                        import_wallet: None,
-                                        view_type: BTCActiveView::BTC,
-                                    });
-                                    return;
-                                }
-                            };
-
-                            let _ = progress_tx.send(Some(ProgressState {
-                                progress: 0.5,
-                                message: "Encrypting wallet data".to_string(),
-                            }));
-
-                            // Store encrypted data in keyring
-                            let sensitive_data = serde_json::to_string(&(encrypted_mnemonic, salt, iv))
-                                .expect("Failed to serialize sensitive data");
-                            let entry = Entry::new("bitcoin_wallet", &address.to_string())
-                                .expect("Failed to access keyring");
-                            entry.set_password(&sensitive_data)
-                                .expect("Failed to store in keyring");
-
-                            // Save wallet data to file
-                           let wallet_data = serde_json::json!({
-    "address": address.to_string(),
-    "private_key_deleted": false
-});
-json_storage::write_json("btc.json", &wallet_data)
-    .expect("Failed to write btc.json");
-
-                            // Send address to bitcoin_wallet_tx
-                            let _ = bitcoin_wallet_tx.send((0.0, Some(address.to_string()), false));
-
-                            // Send WSCommand
-                            let command = WSCommand {
-                                command: "import_bitcoin_wallet".to_string(),
-                                wallet: Some(address.to_string()),
-                                recipient: None,
-                                amount: None,
-                                passphrase: None,
-                                trustline_limit: None,
-                                tx_type: None,
-                                taker_pays: None,
-                                taker_gets: None,
-                                seed: None,
-                                flags: None,
-                                wallet_type: Some("bitcoin_testnet".to_string()),
-                            };
-                            if let Err(e) = commands_tx_clone.try_send(command) {
-                                let _ = progress_tx.send(Some(ProgressState {
-                                    progress: 1.0,
-                                    message: format!("Error: Failed to send command: {}", e),
-                                }));
-                                new_state.error = Some(format!("Failed to send command: {}", e));
-                                let _ = modal_tx.send(BTCModalState {
-                                    create_wallet: Some(new_state),
-                                    import_wallet: None,
-                                    view_type: BTCActiveView::BTC,
-                                });
-                                return;
-                            }
-
-                            new_state.done = true;
-                            if let Some(mut seed) = new_state.seed.take() {
-                                seed.zeroize();
-                            }
-                            let _ = modal_tx.send(BTCModalState {
-                                create_wallet: Some(new_state),
-                                import_wallet: None,
-                                view_type: BTCActiveView::BTC,
-                            });
-                            buffers::clear_buffer(&buffer_id_clone);
-                        });
-                    } else {
-                        create_state.error = Some("No seed available to encrypt.".to_string());
-                        let _ = btc_modal_tx.send(BTCModalState {
-                            create_wallet: Some(create_state.clone()),
-                            import_wallet: None,
-                            view_type: BTCActiveView::BTC,
-                        });
-                        let _ = crate::channel::CHANNEL.progress_tx.send(Some(ProgressState {
-                            progress: 0.0,
-                            message: "Error: No seed available to encrypt".to_string(),
-                        }));
+        // 3. SECURE CHECK & SPAWN
+        if let Some(seed_guard) = seed_opt {
+            // Validation
+            if e_pass.len() < 10 {
+                 btc_ctx.btc_wallet_process.with_mut(|state| {
+                    if let Some(ref mut create) = state.create_wallet {
+                        create.error = Some("Encryption passphrase must be at least 10 characters.".to_string());
                     }
-                    ui.ctx().request_repaint();
+                });
+                return;
+            }
+
+            // Move GUARDS into logic
+            tokio::spawn(BTCCreateLogic::process(
+                seed_guard, // Zeroizing<String> from Step 1
+                b_pass,     // Zeroizing<String>
+                e_pass,     // Zeroizing<String>
+                global.ws_tx.clone()
+            ));
+        } else {
+            // Should not happen if Step 1 worked, but good to handle
+            return; 
+        }
+
+        // 4. WIPE UI
+        bip39_buffer.set(String::new());
+        encryption_buffer.set(String::new());
+        
+        // Clear the seed from state immediately so it doesn't linger in memory
+        btc_ctx.btc_wallet_process.with_mut(|state| {
+            if let Some(ref mut create) = state.create_wallet {
+                create.seed = None; 
+                create.error = None;
+            }
+        });
+    };
+
+    // Pull error state for the UI
+    let create_state = btc_ctx.btc_wallet_process.read();
+    let current_error = create_state.create_wallet.as_ref().and_then(|i| i.error.clone());
+
+    rsx! {
+        div {
+            style: "display: flex; flex-direction: column; align-items: center; width: 100%;",
+
+            div { style: "font-size: 1.5rem; margin: 0; margin-bottom: 0.5rem;", "Enter BIP39 Passphrase (Optional)" }
+            div { style: "font-size: 1rem; color: #888; margin-bottom: 1.5rem;", "If you want a 25th word, enter it here." }
+
+            input {
+                style: "width: 100%; max-width: 25rem; height: 2rem; padding: 0.3125rem; background-color: transparent; border: 1px solid #444; border-radius: 0.25rem; font-size: 1.25rem; margin-bottom: 2rem;",
+                value: "{bip39_buffer()}",
+                oninput: move |e| {
+                    bip39_buffer.set(e.value());
                 }
-            });
-        ui.visuals_mut().widgets = original_visuals.widgets;
-    });
+            }
+
+            div { style: "font-size: 1.5rem; margin: 0; margin-bottom: 0.5rem;", "Encryption Passphrase" }
+            div { style: "font-size: 1rem; color: #888; margin-bottom: 1.5rem;", "Password to encrypt your wallet locally." }
+
+            input {
+                style: "width: 100%; max-width: 25rem; height: 2rem; padding: 0.3125rem; background-color: transparent; border: 1px solid #444; border-radius: 0.25rem; font-size: 1.25rem; margin-bottom: 1rem;",
+                value: "{encryption_buffer()}",
+                type: "password", // Helps visually mask it
+                oninput: move |e| {
+                    encryption_buffer.set(e.value());
+                }
+            }
+
+            if let Some(err) = current_error {
+                div { style: "color: #ff4d4d; margin-bottom: 1rem; font-size: 0.875rem; font-weight: bold;", "{err}" }
+            }
+
+           button {
+                style: "width: 8.75rem; height: 2.25rem; background-color: #333; color: white; border: none; 
+        border-radius: 1.375rem; font-size: 1rem; display: flex; cursor: pointer; justify-content: center; align-items: center; margin-top: 1rem;",
+                onclick: on_create_click,
+                "Create Wallet"
+            }
+        }
+    }
 }

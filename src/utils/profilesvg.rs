@@ -1,0 +1,10 @@
+use dioxus::prelude::*;
+
+const PROFILE_ICON_URI: &str = "data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTgiPz48IS0tIFVwbG9hZGVkIHRvOiBTVkcgUmVwbywgd3d3LnN2Z3JlcG8uY29tLCBHZW5lcmF0b3I6IFNWRyBSZXBvIE1peGVyIFRvb2xzIC0tPgo8c3ZnIHdpZHRoPSIyNHB4IiBoZWlnaHQ9IjI0cHgiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iMTIiIGN5PSI2IiByPSI0IiBmaWxsPSIjYjBiMGIwIi8+CjxwYXRoIGQ9Ik0yMCAxNy41QzIwIDE5Ljk4NTMgMjAgMjIgMTIgMjJDNCAyMiA0IDE5Ljk4NTMgNCAxNy41QzQgMTUuMDE0NyA3LjU4MTcyIDEzIDEyIDEzQzE2LjQxODMgMTMgMjAgMTUuMDE0NyAyMCAxNy41WiIgZmlsbD0iI2IwYjBiMCIvPgo8L3N2Zz4=";
+
+#[component]
+pub fn ProfileIcon() -> Element {
+    rsx! {
+        img { src: "{PROFILE_ICON_URI}" }
+    }
+}

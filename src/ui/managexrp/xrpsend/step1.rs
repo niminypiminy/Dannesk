@@ -1,73 +1,113 @@
 // src/ui/managexrp/xrpsend/step1.rs
 
-use egui::{Ui, Color32, RichText, Frame, Margin};
-use crate::channel::{SignTransaction, SignTransactionState};
-use super::buffer_manager::BufferManager; // Import BufferManager
-use super::styles::styled_text_edit;
+use dioxus::prelude::*;
+use crate::context::XrpContext;
 
-pub fn render_step1(
-    ui: &mut Ui,
-    local_state: &mut SignTransaction,
-    buffer_manager: &mut BufferManager, // Replace individual buffers with BufferManager
-    _balance: f64,
-    _exchange_rate: f64,
-    is_dark_mode: bool,
-    text_color: Color32,
-    sign_transaction_tx: &tokio::sync::watch::Sender<SignTransactionState>,
-) {
-    ui.add_space(20.0);
-    ui.heading(RichText::new("Recipient Address").size(18.0).color(text_color));
-    ui.add_space(20.0);
-    let mut temp_address = buffer_manager.address_buffer().to_string();
-    let address_edit = styled_text_edit(ui, &mut temp_address, 275.0, is_dark_mode, false);
-    if address_edit.changed() {
-        buffer_manager.update_address(&temp_address); // Update address via BufferManager
-        local_state.error = None;
-    }
+#[component]
+pub fn view() -> Element {
+    let xrp_ctx = use_context::<XrpContext>();
+    let mut sign_transaction = xrp_ctx.sign_transaction;
 
-    if let Some(error) = &local_state.error {
-        ui.add_space(10.0);
-        ui.colored_label(Color32::RED, error);
-    }
+    // Initialize local buffer from global state
+    let mut addr_buffer = use_signal(|| {
+        sign_transaction.read()
+            .send_transaction.as_ref()
+            .and_then(|s| s.recipient.clone())
+            .unwrap_or_default()
+    });
 
-    ui.add_space(10.0);
-    // Center the button using a layout similar to the receive example
-    ui.allocate_ui_with_layout(
-        egui::Vec2::new(150.0, 40.0), // Size for button area, scaled relative to modal
-        egui::Layout::top_down(egui::Align::Center),
-        |ui| {
-            // Modernized Next button with retro vibe
-            let original_visuals = ui.visuals().clone();
-            if !is_dark_mode {
-                ui.visuals_mut().widgets.inactive.fg_stroke = egui::Stroke::new(1.0, text_color);
-                ui.visuals_mut().widgets.active.fg_stroke = egui::Stroke::new(2.0, text_color);
+    // Reactive border color based on validation
+    // Green = Starts with 'r' and has some length
+    // Red = Typed something but doesn't start with 'r'
+    let border_style = use_memo(move || {
+        let val = addr_buffer();
+        let trimmed = val.trim();
+        
+        if trimmed.starts_with('r') && trimmed.len() > 5 { // Basic sanity check
+            "1px solid #10B981" // Green
+        } else if !trimmed.is_empty() {
+            "1px solid #ef4444" // Red
+        } else {
+            "1px solid #444" // Default
+        }
+    });
+
+   let on_next_click = move |_| {
+        let addr = addr_buffer().trim().to_string();
+        let len = addr.len();
+
+        // 1. Check for empty input
+        if addr.is_empty() {
+            sign_transaction.with_mut(|state| {
+                if let Some(ref mut send) = state.send_transaction {
+                    send.error = Some("Recipient address cannot be empty.".to_string());
+                }
+            });
+            return;
+        } 
+        
+        // 2. Comprehensive Validation: Prefix ('r') AND Length (25-35)
+        if !addr.starts_with('r') || len < 25 || len > 35 {
+            sign_transaction.with_mut(|state| {
+                if let Some(ref mut send) = state.send_transaction {
+                    send.error = Some("Invalid XRP address: Must start with 'r' and be between 25-35 characters.".to_string());
+                }
+            });
+            return;
+        }
+
+        // 3. Success - Save to global state and advance to Step 2
+        sign_transaction.with_mut(|state| {
+            if let Some(ref mut send) = state.send_transaction {
+                send.recipient = Some(addr); 
+                send.error = None;
+                send.step = 2;
             }
-            Frame::new() // egui 0.31.1, no ID argument
-                .inner_margin(Margin::symmetric(8, 4)) // Matches Copy Address button
-                .show(ui, |ui| {
-                    // Dynamic button size based on modal width (350.0 from mod.rs)
-                    let button_width = 100.0 * (ui.available_width() / 350.0).min(1.2).max(0.8); // Scale between 80% and 120%
-                    let next_button = ui.add(
-                        egui::Button::new(RichText::new("Next").size(14.0).color(text_color))
-                            .min_size(egui::Vec2::new(button_width, 28.0)),
-                    );
-                    if next_button.clicked() {
-                        let trimmed_address = buffer_manager.address_buffer().trim();
-                        if trimmed_address.is_empty() {
-                            local_state.error = Some("Recipient address cannot be empty.".to_string());
-                        } else if !trimmed_address.starts_with('r') || trimmed_address.len() != 34 {
-                            local_state.error = Some("Invalid XRP address: Must start with 'r' and be 34 characters.".to_string());
-                        } else {
-                            local_state.step = 2;
-                            let _ = sign_transaction_tx.send(SignTransactionState {
-                                send_transaction: Some(local_state.clone()),
-                            });
+        });
+    };
+
+    // Pull current error from global state
+    let current_error = sign_transaction.read()
+        .send_transaction.as_ref()
+        .and_then(|s| s.error.clone());
+
+    rsx! {
+        div {
+            style: " display: flex; 
+                flex-direction: column; 
+                width: 100%; 
+                align-items: center;",
+
+            div { style: "font-size: 1.5rem; margin: 0; margin-bottom: 1rem;", "Recipient Address" }
+            div { style: "font-size: 1rem; color: #888; margin-bottom: 1.5rem;", "Enter the XRP address you wish to send funds to." }
+
+            input {
+                style: "width: 100%; max-width: 33rem; height: 2rem; padding: 0.3125rem; background-color: transparent; border: {border_style}; border-radius: 0.25rem; font-size: 1.25rem; margin-bottom: 1rem;",
+                value: "{addr_buffer()}",
+                oninput: move |e| {
+                    // LOGIC FIX: Strip newlines immediately to prevent Vello layout shifts
+                    let clean_val = e.value().replace(['\n', '\r'], "");
+                    addr_buffer.set(clean_val);
+                    
+                    // Clear error when user types
+                    sign_transaction.with_mut(|state| {
+                        if let Some(ref mut send) = state.send_transaction {
+                            send.error = None;
                         }
-                        buffer_manager.update_buffers(); // Update buffers on button click
-                        ui.ctx().request_repaint();
-                    }
-                });
-            ui.visuals_mut().widgets = original_visuals.widgets;
-        },
-    );
+                    });
+                }
+            }
+
+            if let Some(err) = current_error {
+                div { style: "color: #ff4d4d; margin-bottom: 1rem; font-size: 0.875rem; font-weight: bold;", "{err}" }
+            }
+
+            button {
+                style: "width: 8.75rem; height: 2.25rem; background-color: #333; color: white; border: none; 
+        border-radius: 1.375rem; font-size: 1rem; display: flex; cursor: pointer; justify-content: center; align-items: center; margin-top: 1rem;",
+                onclick: on_next_click,
+                "Continue"
+            }
+        }
+    }
 }

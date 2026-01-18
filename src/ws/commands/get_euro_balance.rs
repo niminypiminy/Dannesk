@@ -9,7 +9,7 @@ pub async fn execute(
     cmd: WSCommand,
 ) -> Result<(), String> {
     // Allow client-initiated Euro balance requests
-    if let Some(wallet) = cmd.wallet {
+    if let Some(wallet) = &cmd.wallet {
         let msg_json = json!({ "command": "get_euro_balance", "wallet": wallet });
         connection
             .send(Message::Text(msg_json.to_string()))

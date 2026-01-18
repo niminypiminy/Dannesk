@@ -1,147 +1,262 @@
 // src/ui/managexrp/xrpsend/step2.rs
 
-use egui::{Ui, Margin, Color32, RichText, Frame, Grid};
-use crate::channel::{SignTransaction, SignTransactionState};
-use super::buffer_manager::BufferManager;
-use super::styles::styled_text_edit;
+use dioxus::prelude::*;
+use crate::context::{XrpContext, GlobalContext, RlusdContext, EuroContext};
 
-pub fn render_step2(
-    ui: &mut Ui,
-    local_state: &mut SignTransaction,
-    buffer_manager: &mut BufferManager, // Replace individual buffers with BufferManager
-    balance: f64,
-    exchange_rate: f64,
-    is_dark_mode: bool,
-    text_color: Color32,
-    sign_transaction_tx: &tokio::sync::watch::Sender<SignTransactionState>,
-) {
-    Frame::default()
-        .outer_margin(Margin {
-            left: 36,
-            right: 0,
-            top: 8,
-            bottom: 8,
-        })
-        .show(ui, |ui| {
-            ui.vertical(|ui| {
-                ui.add_space(8.0);
+/// Helper to truncate a float to a string with max N decimals without rounding.
+fn truncate_to_string(val: f64, decimals: usize) -> String {
+    let s = format!("{:.1$}", val, decimals);
+    if let Some(dot_idx) = s.find('.') {
+        let integer_part = &s[..dot_idx];
+        let fractional_part = &s[dot_idx + 1..];
+        
+        // Remove unnecessary trailing zeros
+        let trimmed_fraction = fractional_part.trim_end_matches('0');
+        
+        // If we still want some decimals (like .00 for USD), 
+        // we can set a minimum here. For now, let's just make it 
+        // look like currency if it's likely a USD value.
+        if trimmed_fraction.is_empty() {
+            // This ensures "1" becomes "1.00"
+            format!("{}.00", integer_part)
+        } else if trimmed_fraction.len() == 1 {
+            // This ensures "1.1" becomes "1.10"
+            format!("{}.{}0", integer_part, trimmed_fraction)
+        } else {
+            format!("{}.{}", integer_part, trimmed_fraction)
+        }
+    } else {
+        format!("{}.00", s)
+    }
+}
+#[component]
+pub fn view() -> Element {
+    let xrp_ctx = use_context::<XrpContext>();
+    let global = use_context::<GlobalContext>();
+    let rlusd_ctx = use_context::<RlusdContext>();
+    let euro_ctx = use_context::<EuroContext>();
+    
+    let mut sign_transaction = xrp_ctx.sign_transaction;
+    let rates = global.rates.read();
+    let exchange_rate = rates.get("XRP/USD").copied().unwrap_or(0.0) as f64;
 
-                // XRP and USD Amount Inputs
-                Grid::new("amount_grid")
-                    .num_columns(2)
-                    .spacing([5.0, 5.0])
-                    .min_col_width(150.0)
-                    .show(ui, |ui| {
-                        // XRP Input
-                        ui.vertical(|ui| {
-                            ui.label(RichText::new("Amount (XRP)").size(16.0).color(text_color));
-                            let mut temp_xrp_amount = buffer_manager.xrp_amount_buffer().to_string();
-                            let xrp_edit = styled_text_edit(ui, &mut temp_xrp_amount, 100.0, is_dark_mode, false);
-                            if xrp_edit.changed() {
-                                if let Ok(xrp) = temp_xrp_amount.parse::<f64>() {
-                                    let usd = xrp * exchange_rate;
-                                    buffer_manager.update_usd_amount(&format!("{:.5}", usd));
-                                } else {
-                                    buffer_manager.update_usd_amount("");
-                                }
-                                buffer_manager.update_xrp_amount(&temp_xrp_amount);
-                                local_state.error = None;
-                            }
-                        });
+    // Get the current asset selection from state
+    let asset = sign_transaction.read().send_transaction.as_ref()
+        .map(|s| s.asset.clone())
+        .unwrap_or_else(|| "XRP".to_string());
 
-                        // USD Input
-                        ui.vertical(|ui| {
-                            ui.label(RichText::new("Amount (USD)").size(16.0).color(text_color));
-                            let mut temp_usd_amount = buffer_manager.usd_amount_buffer().to_string();
-                            let usd_edit = styled_text_edit(ui, &mut temp_usd_amount, 100.0, is_dark_mode, false);
-                            if usd_edit.changed() {
-                                if let Ok(usd) = temp_usd_amount.parse::<f64>() {
-                                    let xrp = usd / exchange_rate;
-                                    buffer_manager.update_xrp_amount(&format!("{:.6}", xrp));
-                                } else {
-                                    buffer_manager.update_xrp_amount("");
-                                }
-                                buffer_manager.update_usd_amount(&temp_usd_amount);
-                                local_state.error = None;
-                            }
-                        });
-                        ui.end_row();
-                    });
+    // Branch balance reading based on the asset string
+    let (balance, asset_label) = match asset.as_str() {
+        "RLUSD" => {
+            let (bal, _, _) = rlusd_ctx.rlusd.read().clone();
+            (bal, "RLUSD")
+        },
+        "EURO" => {
+            let (bal, _, _) = euro_ctx.euro.read().clone();
+            (bal, "EURO")
+        },
+        _ => {
+            let (bal, _, _) = xrp_ctx.wallet_balance.read().clone();
+            (bal, "XRP")
+        },
+    };
 
-                ui.add_space(12.0);
+    let mut xrp_in = use_signal(|| {
+        sign_transaction.read()
+            .send_transaction.as_ref()
+            .and_then(|s| s.amount.clone())
+            .unwrap_or_default()
+    });
+    
+    let mut usd_in = use_signal(|| {
+        if asset != "XRP" { return String::new(); }
+        let saved_xrp = sign_transaction.read()
+            .send_transaction.as_ref()
+            .and_then(|s| s.amount.clone())
+            .unwrap_or_default();
+        
+        if let Ok(val) = saved_xrp.parse::<f64>() {
+            truncate_to_string(val * exchange_rate, 6)
+        } else {
+            String::new()
+        }
+    });
 
-                // Balance and Exchange Rate Grid
-                Grid::new("balance_info_grid")
-                    .striped(true)
-                    .num_columns(2)
-                    .spacing([10.0, 5.0])
-                    .min_col_width(100.0)
-                    .show(ui, |ui| {
-                        ui.label(RichText::new("Item").size(14.0).strong().color(text_color));
-                        ui.label(RichText::new("Value").size(14.0).strong().color(text_color));
-                        ui.end_row();
+    let mut clear_error = move || {
+        sign_transaction.with_mut(|state| {
+            if let Some(ref mut send) = state.send_transaction {
+                send.error = None;
+            }
+        });
+    };
 
-                        ui.label(RichText::new("Balance").size(14.0).color(text_color));
-                        ui.label(
-                            RichText::new(format!("{:.6} XRP", balance))
-                                .size(14.0)
-                                .color(text_color),
-                        );
-                        ui.end_row();
+    // Clone asset for input closure
+    let asset_for_input = asset.clone();
+    let on_xrp_input = move |evt: FormEvent| {
+        let val = evt.value();
+        xrp_in.set(val.clone());
+        clear_error();
 
-                        ui.label(RichText::new("Exchange Rate").size(14.0).color(text_color));
-                        ui.label(
-                            RichText::new(format!("${:.5}", exchange_rate))
-                                .size(14.0)
-                                .color(text_color),
-                        );
-                        ui.end_row();
-                    });
+        if asset_for_input == "XRP" {
+            if let Ok(amount) = val.parse::<f64>() {
+                let usd = amount * exchange_rate;
+                usd_in.set(truncate_to_string(usd, 6));
+            } else {
+                usd_in.set("".to_string());
+            }
+        }
+    };
 
-                if let Some(error) = &local_state.error {
-                    ui.add_space(8.0);
-                    ui.colored_label(Color32::RED, error);
+    let on_usd_input = move |evt: FormEvent| {
+        let val = evt.value();
+        usd_in.set(val.clone());
+        clear_error();
+
+        if let Ok(amount) = val.parse::<f64>() {
+            if exchange_rate > 0.0 {
+                let xrp = amount / exchange_rate;
+                xrp_in.set(truncate_to_string(xrp, 6));
+            }
+        } else {
+            xrp_in.set("".to_string());
+        }
+    };
+
+    // Clone asset for next click closure
+    let asset_for_next = asset.clone();
+    let asset_label_for_next = asset_label; // Static str is Copy
+    let on_next_click = move |_| {
+        let amount_str = xrp_in().trim().to_string();
+        
+        if amount_str.is_empty() {
+            sign_transaction.with_mut(|state| {
+                if let Some(ref mut send) = state.send_transaction {
+                    send.error = Some("Amount cannot be empty.".to_string());
+                }
+            });
+            return;
+        }
+
+        if let Ok(amount) = amount_str.parse::<f64>() {
+            let reserve = if asset_for_next == "XRP" { 1.0 } else { 0.0 };
+            
+            if amount <= 0.0 {
+                 sign_transaction.with_mut(|state| {
+                    if let Some(ref mut send) = state.send_transaction {
+                        send.error = Some("Amount must be greater than zero.".to_string());
+                    }
+                });
+            } else if amount > balance - reserve {
+                 sign_transaction.with_mut(|state| {
+                    let err = if asset_for_next == "XRP" {
+                        "Insufficient funds: 1 XRP reserve required.".to_string()
+                    } else {
+                        format!("Insufficient funds: {} {} available.", truncate_to_string(balance, 6), asset_label_for_next)
+                    };
+                    if let Some(ref mut send) = state.send_transaction {
+                        send.error = Some(err);
+                    }
+                });
+            } else {
+                sign_transaction.with_mut(|state| {
+                    if let Some(ref mut send) = state.send_transaction {
+                        send.amount = Some(truncate_to_string(amount, 6));
+                        send.step = 3; 
+                        send.error = None;
+                    }
+                });
+            }
+        } else {
+            sign_transaction.with_mut(|state| {
+                if let Some(ref mut send) = state.send_transaction {
+                    send.error = Some("Invalid amount format.".to_string());
+                }
+            });
+        }
+    };
+
+    let current_error = sign_transaction.read()
+        .send_transaction.as_ref()
+        .and_then(|s| s.error.clone());
+
+    let get_border = |val: String| -> &'static str {
+        let trimmed = val.trim();
+        if !trimmed.is_empty() && trimmed.parse::<f64>().is_ok() {
+             "1px solid #10B981" 
+        } else if !trimmed.is_empty() {
+             "1px solid #ef4444"
+        } else {
+             "1px solid #444"
+        }
+    };
+
+    let formatted_balance = truncate_to_string(balance, 6);
+
+rsx! {
+        div {
+            style: "display: flex; 
+                flex-direction: column; 
+                width: 100%; 
+                align-items: center;",
+
+            div { style: "font-size: 1.5rem; margin: 0; margin-bottom: 1rem;", "Enter Amount" }
+            div { 
+                style: "font-size: 1rem; color: #888; margin-bottom: 1.5rem;", 
+                if asset == "XRP" { "Enter the amount in XRP or USD." } else { "Enter the amount of {asset_label} to send." }
+            }
+
+            // === Primary Input ===
+            div { style: "width: 100%; max-width: 25rem;",
+                label { style: "font-size: 0.875rem; margin-bottom: 0.25rem; display: block;", "Amount ({asset_label})" }
+                input {
+                    style: "width: 100%; height: 2rem; padding: 0.3125rem; background-color: transparent; border: {get_border(xrp_in())}; border-radius: 0.25rem; font-size: 1.25rem; display: block;",
+                    value: "{xrp_in()}",
+                    oninput: on_xrp_input
+                }
+            }
+
+            // === USD Input (Only rendered if XRP is selected) ===
+            if asset == "XRP" {
+                div { style: "width: 100%; max-width: 25rem; margin-top: 1rem;",
+                    label { style: "font-size: 0.875rem; margin-bottom: 0.25rem; display: block;", "Amount (USD)" }
+                    input {
+                        style: "width: 100%; height: 2rem; padding: 0.3125rem; background-color: transparent; border: {get_border(usd_in())}; border-radius: 0.25rem; font-size: 1.25rem; display: block;",
+                        value: "{usd_in()}",
+                        oninput: on_usd_input
+                    }
+                }
+            }
+
+            // === Info Row (Flush under last input) ===
+         // === Info Row ===
+            div {
+                style: "display: flex; flex-direction: column; width: 100%; max-width: 25rem; font-size: 0.875rem; color: #888; margin-top: 1rem;",
+                
+                div {
+                    style: "display: flex; flex-direction: row; gap: 0.5rem; text-align: left;",
+                    span { "Available Balance:" }
+                    span { style: "font-weight: bold;", "{formatted_balance} {asset_label}" }
                 }
 
-                ui.add_space(12.0);
-                ui.horizontal(|ui| {
-                    // Modernized Next button with step1 style, keeping exact left alignment
-                    let original_visuals = ui.visuals().clone();
-                    if !is_dark_mode {
-                        ui.visuals_mut().widgets.inactive.fg_stroke = egui::Stroke::new(1.0, text_color);
-                        ui.visuals_mut().widgets.active.fg_stroke = egui::Stroke::new(2.0, text_color);
+                if asset == "XRP" {
+                    div {
+                        style: "display: flex; flex-direction: row; gap: 0.5rem; text-align: left;",
+                        span { "Exchange Rate:" }
+                        span { style: "font-weight: bold;", "${exchange_rate}" }
                     }
-                    Frame::new() // egui 0.31.1, no ID argument
-                        .inner_margin(Margin::symmetric(0, 4)) // Minimal horizontal margin to avoid rightward shift
-                        .show(ui, |ui| {
-                            let next_button = ui.add(
-                                egui::Button::new(RichText::new("Next").size(14.0).color(text_color))
-                                    .min_size(egui::Vec2::new(80.0, 28.0)), // Fixed width to match default button
-                            );
-                            if next_button.clicked() {
-                                let trimmed_xrp_amount = buffer_manager.xrp_amount_buffer().trim();
-                                if trimmed_xrp_amount.is_empty() {
-                                    local_state.error = Some("Amount cannot be empty.".to_string());
-                                } else if let Ok(amount) = trimmed_xrp_amount.parse::<f64>() {
-                                    if amount <= 0.0 {
-                                        local_state.error = Some("Amount must be greater than zero.".to_string());
-                                    } else if amount > balance - 1.0 {
-                                        local_state.error = Some("Insufficient funds: 1 XRP reserve required.".to_string());
-                                    } else {
-                                        local_state.step = 3;
-                                        let _ = sign_transaction_tx.send(SignTransactionState {
-                                            send_transaction: Some(local_state.clone()),
-                                        });
-                                    }
-                                } else {
-                                    local_state.error = Some("Invalid amount format.".to_string());
-                                }
-                                buffer_manager.update_buffers(); // Update buffers on button click
-                                ui.ctx().request_repaint();
-                            }
-                        });
-                    ui.visuals_mut().widgets = original_visuals.widgets;
-                });
-            });
-        });
+                }
+            }
+
+            if let Some(err) = current_error {
+                div { style: "color: #ff4d4d; font-size: 0.875rem; font-weight: bold; margin-top: 0.5rem;", "{err}" }
+            }
+
+            button {
+                style: "width: 8.75rem; height: 2.25rem; background-color: #333; color: white; border: none; 
+        border-radius: 1.375rem; font-size: 1rem; display: flex; cursor: pointer; justify-content: center; align-items: center; margin-top: 3rem;",
+                onclick: on_next_click,
+                "Continue"
+            }
+        }
+    }
 }

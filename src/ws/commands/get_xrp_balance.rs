@@ -28,7 +28,7 @@ pub async fn process_response(message: Message, current_wallet: &str) -> Result<
                 }
 
                 let wallet_balance_rx = CHANNEL.wallet_balance_rx.clone();
-                let (_current_balance, _wallet_opt, current_xrp_active, private_key_deleted) = wallet_balance_rx.borrow().clone();
+                let (_current_balance, _wallet_opt, private_key_deleted) = wallet_balance_rx.borrow().clone();
 
                 let balance_xrp = if let Some(balance) = data.get("balance").and_then(|b| b.as_str()) {
                     if balance == "0" && data.get("balance").is_none() {
@@ -44,7 +44,7 @@ pub async fn process_response(message: Message, current_wallet: &str) -> Result<
 
                 CHANNEL
                     .wallet_balance_tx
-                    .send((balance_xrp, Some(wallet.to_string()), current_xrp_active, private_key_deleted))
+                    .send((balance_xrp, Some(wallet.to_string()), private_key_deleted))
                     .map_err(|e| format!("Failed to send wallet balance: {}", e))?;
             } else {
                 return Err("Missing wallet field".to_string());

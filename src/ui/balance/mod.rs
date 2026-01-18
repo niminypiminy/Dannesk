@@ -1,228 +1,106 @@
-// src/ui/balance/mod.rs
-use egui::{Ui, RichText, Grid, Frame};
-use crate::channel::CHANNEL;
-use crate::utils::svg_render::SvgCanvas;
+use dioxus::prelude::*;
+use chrono::{Local, Timelike};
+use crate::context::{GlobalContext, XrpContext, RlusdContext, EuroContext, BtcContext};
+use crate::utils::add_commas; 
+use crate::ui::sidebar;
+use crate::ui::settings; 
+use crate::channel::SettingsView;
 
-pub fn render_balance(ui: &mut Ui) {
-    // Clone channels
-    let wallet_balance_rx = CHANNEL.wallet_balance_rx.clone();
-    let bitcoin_wallet_rx = CHANNEL.bitcoin_wallet_rx.clone();
-    let rates_rx = CHANNEL.rates_rx.clone();
-    let rlusd_rx = CHANNEL.rlusd_rx.clone();
-    let euro_rx = CHANNEL.euro_rx.clone();
-    let theme_user_rx = CHANNEL.theme_user_rx.clone();
+#[component]
+pub fn render_balance() -> Element {
+    let global = use_context::<GlobalContext>();
+    let xrp_ctx = use_context::<XrpContext>();
+    let rlusd_ctx = use_context::<RlusdContext>();
+    let euro_ctx = use_context::<EuroContext>();
+    let btc_ctx = use_context::<BtcContext>();
 
-    // Clone inner data to avoid borrowing
-    let (xrp_balance, _wallet_address, _is_active, _privatekey) = wallet_balance_rx.borrow().clone();
-    let (btc_balance, _btc_address, _private_key_deleted) = bitcoin_wallet_rx.borrow().clone();
-    let rates = rates_rx.borrow().clone();
-    let (rlusd_balance, _has_trustline, _trust_limit) = rlusd_rx.borrow().clone();
-    let (euro_balance, _euro_has_trustline, _euro_trust_limit) = euro_rx.borrow().clone();
-    let (is_dark_mode, _, hide_balance) = theme_user_rx.borrow().clone();
+    // 1. READ THE SIGNAL (This is automatically updated by your context.rs coroutine)
+let settings_state = global.settings_modal.read();
+    // 2. THE GATE: Swap to settings view if a setting is active.
+    // We check view_type to see WHICH setting, and last_view to ensure it's "active".
+    if settings_state.last_view.is_some() && matches!(settings_state.view_type, SettingsView::Name | SettingsView::Security | SettingsView::Network) {
+        return rsx! { settings::render_settings {} };
+    }
 
-    // Define text color based on theme
-    let text_color = if is_dark_mode {
-        egui::Color32::from_rgb(255, 254, 250) // Off-white for dark mode
-    } else {
-        egui::Color32::from_rgb(34, 34, 34) // Dark grey for light mode
+    // 3. DEFAULT BALANCE UI (The Dashboard)
+    let (xrp_amount, _, _) = xrp_ctx.wallet_balance.read().clone();
+    let (rlusd_amount, _, _) = rlusd_ctx.rlusd.read().clone();
+    let (euro_amount, _, _) = euro_ctx.euro.read().clone();
+    let (btc_amount, _, _) = btc_ctx.bitcoin_wallet.read().clone();
+
+    let rates = global.rates.read();
+    let xrp_usd_rate: f64 = rates.get("XRP/USD").copied().unwrap_or(0.0) as f64;
+    let btc_usd_rate: f64 = rates.get("BTC/USD").copied().unwrap_or(0.0) as f64;
+
+    let (_, user_name, hide_balance) = global.theme_user.read().clone();
+
+    let total_usd = if hide_balance { 0.0 } else {
+        (xrp_amount * xrp_usd_rate) + rlusd_amount + euro_amount + (btc_amount * btc_usd_rate)
     };
 
-    ui.vertical(|ui| {
-        // Get rates and fix RLUSD rate at $1.00, EUROP rate at €1.00 for display
-        let xrp_rate = rates.get("XRP/USD").copied().unwrap_or(0.0) as f64;
-        let btc_rate = rates.get("BTC/USD").copied().unwrap_or(0.0) as f64;
-        let rlusd_rate = 1.0;
-        let euro_display_rate = 1.0;
-        let mut total_usd = xrp_balance * xrp_rate + btc_balance * btc_rate + rlusd_balance * rlusd_rate;
-        if let Some(euro_to_usd_rate) = rates.get("EUR/USD").copied() {
-            total_usd += euro_balance * euro_to_usd_rate as f64;
-        }
+    let (int_part, frac_part) = if hide_balance {
+        ("****".to_string(), "".to_string())
+    } else {
+        (
+            add_commas(total_usd.floor() as i64), 
+            format!(".{:02}", (total_usd.fract() * 100.0).floor() as i64)
+        )
+    };
 
-        ui.set_min_height(ui.available_height());
-        ui.vertical_centered(|ui| {
-            // Dynamic vertical spacing
-            let available_height = ui.available_height();
-            ui.add_space((available_height * 0.3).max(20.0));
+    let now = Local::now().hour();
+    let greeting = match now {
+        5..=11 => "Good morning",
+        12..=16 => "Good afternoon",
+        _ => "Good evening",
+    };
 
-            // Dynamic font size for balance text
-            let available_width = ui.available_width();
-            let font_size = (available_width * 0.1).clamp(40.0, 100.0);
+    rsx! {
+        style { {r#"
+            .balance-main-container {
+                display: flex; flex-direction: column; align-items: center; justify-content: center;
+                width: 100%; height: 100%; position: relative; font-family: monospace;
+            }
+            .right-dock-container {
+    position: absolute; 
+    right: 2rem; 
+    display: flex; 
+    flex-direction: column; 
+    
+    /* 1. Reduce the gap between icons/items */
+    gap: 0.5rem; 
+    
+    /* 2. Reduce horizontal padding (left/right) while keeping vertical padding */
+    padding: 1rem 0.5rem; 
+    
+    background-color: rgba(30, 30, 30, 0.8); 
+    border-radius: 2rem;
+    border: 1px solid rgba(255, 255, 255, 0.1); 
+    align-items: center;
+        "#} }
 
-            let balance_text = if hide_balance {
-                "****".to_string()
-            } else {
-                format!("${:.2}", total_usd)
-            };
-            ui.label({
-                let mut job = egui::text::LayoutJob::default();
+        div { class: "balance-main-container",
+            div { 
+                style: "margin-bottom: 1.5rem; font-size: 1.5rem; opacity: 0.7;", 
+                "{greeting}, {user_name}" 
+            }
+
+            h1 {
+                style: "display: flex; align-items: baseline; font-size: 6rem; line-height: 1.1; margin: 0;",
                 if !hide_balance {
-                    let decimal_pos = balance_text.find('.').unwrap_or(balance_text.len());
-                    job.append(
-                        "$",
-                        0.0,
-                        egui::TextFormat {
-                            font_id: egui::FontId::new(font_size, egui::FontFamily::Name("DejaVuSansMono".into())),
-                            color: text_color,
-                            ..Default::default()
-                        },
-                    );
-                    job.append(
-                        &balance_text[1..decimal_pos],
-                        0.0,
-                        egui::TextFormat {
-                            font_id: egui::FontId::new(font_size, egui::FontFamily::Name("DejaVuSansMonoBold".into())),
-                            color: text_color,
-                            ..Default::default()
-                        },
-                    );
-                    if decimal_pos < balance_text.len() {
-                        job.append(
-                            &balance_text[decimal_pos..],
-                            0.0,
-                            egui::TextFormat {
-                                font_id: egui::FontId::new(font_size, egui::FontFamily::Name("DejaVuSansMono".into())),
-                                color: text_color,
-                                ..Default::default()
-                            },
-                        );
-                    }
+                    span { style: "font-weight: bold; margin-right: 0.5rem;", "$" }
+                    span { style: "font-weight: bold;", "{int_part}" }
+                    span { style: "opacity: 0.8;", "{frac_part}" }
                 } else {
-                    job.append(
-                        &balance_text,
-                        0.0,
-                        egui::TextFormat {
-                            font_id: egui::FontId::new(font_size, egui::FontFamily::Name("DejaVuSansMono".into())),
-                            color: text_color,
-                            ..Default::default()
-                        },
-                    );
+                    span { style: "font-weight: normal; letter-spacing: 0.5rem;", "****" }
                 }
-                ui.fonts(|f| f.layout_job(job))
-            });
-            ui.add_space(20.0 * (available_width / 900.0).clamp(0.5, 1.0));
-            ui.horizontal(|ui| {
-                // Dynamic grid width
-                let total_grid_width = (ui.available_width() * 0.8).min(400.0);
-                let available_width = ui.available_width();
-                if available_width > total_grid_width {
-                    ui.add_space((available_width - total_grid_width) / 2.0);
-                }
-                Frame::new()
-                    .outer_margin(egui::Margin {
-                        left: 30,
-                        right: 0,
-                        top: 0,
-                        bottom: 0,
-                    })
-                    .show(ui, |ui| {
-                        // Dynamic column width
-                        let col_width = (total_grid_width - 20.0) / 3.0;
-                        Grid::new("balance_grid")
-                            .striped(true)
-                            .num_columns(3)
-                            .spacing([10.0 * (available_width / 900.0).clamp(0.5, 1.0), 5.0])
-                            .min_col_width(col_width)
-                            .show(ui, |ui| {
-                                let text_size = (available_width * 0.015).clamp(12.0, 14.0);
-                                ui.label(RichText::new("Token").size(text_size).strong().color(text_color));
-                                ui.label(RichText::new("Balance").size(text_size).strong().color(text_color));
-                                ui.label(RichText::new("Rate").size(text_size).strong().color(text_color));
-                                ui.end_row();
+            }
 
-                                // XRP Row
-                                ui.horizontal(|ui| {
-                                    ui.add(
-                                        SvgCanvas::paint_svg(if is_dark_mode {
-                                            "xrp_white.svg"
-                                        } else {
-                                            "xrp_dark.svg"
-                                        })
-                                        .fit_to_exact_size(egui::vec2(16.0 * (available_width / 900.0).clamp(0.5, 1.0), 16.0 * (available_width / 900.0).clamp(0.5, 1.0))),
-                                    );
-                                    ui.add_space(4.0 * (available_width / 900.0).clamp(0.5, 1.0)); // Space between icon and text
-                                    ui.label(RichText::new("XRP").size(text_size).color(text_color));
-                                });
-                                ui.label(
-                                    RichText::new(if hide_balance {
-                                        "**** XRP".to_string()
-                                    } else {
-                                        format!("{:.6} XRP", xrp_balance)
-                                    })
-                                    .size(text_size)
-                                    .color(text_color)
-                                )
-                                .on_hover_text(if hide_balance { "Balance hidden for privacy" } else { "XRP balance" });
-                                ui.label(RichText::new(format!("${:.4}", xrp_rate)).size(text_size).color(text_color));
-                                ui.end_row();
-
-                                // BTC Row
-                                ui.horizontal(|ui| {
-                                    ui.add(
-                                        SvgCanvas::paint_svg("btc.svg")
-                                            .fit_to_exact_size(egui::vec2(16.0 * (available_width / 900.0).clamp(0.5, 1.0), 16.0 * (available_width / 900.0).clamp(0.5, 1.0))),
-                                    );
-                                    ui.add_space(4.0 * (available_width / 900.0).clamp(0.5, 1.0));
-                                    ui.label(RichText::new("BTC").size(text_size).color(text_color));
-                                });
-                                ui.label(
-                                    RichText::new(if hide_balance {
-                                        "**** BTC".to_string()
-                                    } else {
-                                        format!("{:.6} BTC", btc_balance)
-                                    })
-                                    .size(text_size)
-                                    .color(text_color)
-                                )
-                                .on_hover_text(if hide_balance { "Balance hidden for privacy" } else { "BTC balance" });
-                                ui.label(RichText::new(format!("${:.2}", btc_rate)).size(text_size).color(text_color));
-                                ui.end_row();
-
-                                // RLUSD Row
-                                ui.horizontal(|ui| {
-                                    ui.add(
-                                        SvgCanvas::paint_svg("rlusd.svg")
-                                            .fit_to_exact_size(egui::vec2(16.0 * (available_width / 900.0).clamp(0.5, 1.0), 16.0 * (available_width / 900.0).clamp(0.5, 1.0))),
-                                    );
-                                    ui.add_space(4.0 * (available_width / 800.0).clamp(0.5, 1.0));
-                                    ui.label(RichText::new("RLUSD").size(text_size).color(text_color));
-                                });
-                                ui.label(
-                                    RichText::new(if hide_balance {
-                                        "**** RLUSD".to_string()
-                                    } else {
-                                        format!("{:.2} RLUSD", rlusd_balance)
-                                    })
-                                    .size(text_size)
-                                    .color(text_color)
-                                )
-                                .on_hover_text(if hide_balance { "Balance hidden for privacy" } else { "RLUSD balance" });
-                                ui.label(RichText::new(format!("${:.2}", rlusd_rate)).size(text_size).color(text_color));
-                                ui.end_row();
-
-                                // EUROP Row
-                                ui.horizontal(|ui| {
-                                    ui.add(
-                                        SvgCanvas::paint_svg("europ.svg")
-                                            .fit_to_exact_size(egui::vec2(16.0 * (available_width / 900.0).clamp(0.5, 1.0), 16.0 * (available_width / 900.0).clamp(0.5, 1.0))),
-                                    );
-                                    ui.add_space(4.0 * (available_width / 800.0).clamp(0.5, 1.0));
-                                    ui.label(RichText::new("EUROP").size(text_size).color(text_color));
-                                });
-                                ui.label(
-                                    RichText::new(if hide_balance {
-                                        "**** EUROP".to_string()
-                                    } else {
-                                        format!("{:.2} EUROP", euro_balance)
-                                    })
-                                    .size(text_size)
-                                    .color(text_color)
-                                )
-                                .on_hover_text(if hide_balance { "Balance hidden for privacy" } else { "EUROP balance" });
-                                ui.label(RichText::new(format!("€{:.2}", euro_display_rate)).size(text_size).color(text_color));
-                                ui.end_row();
-                            });
-                    });
-            });
-        });
-    });
+            // RIGHT DOCK (Sidebar buttons)
+           div { class: "right-dock-container",
+                sidebar::render_balance_toggle {}
+                sidebar::render_theme_toggle {}
+                sidebar::render_settings_toggle {} 
+            }
+        }
+    }
 }

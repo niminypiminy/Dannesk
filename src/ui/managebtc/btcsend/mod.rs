@@ -1,165 +1,94 @@
 // src/ui/managebtc/btcsend/mod.rs
-mod step1;
-mod step2;
-mod step3;
-mod buffers;
-mod styles;
 
-pub use step1::render_step1;
-pub use step2::render_step2;
-pub use step3::render_step3;
-pub use buffers::{get_buffers, clear_buffer};
+use dioxus::prelude::*;
+use crate::context::BtcContext;
+use crate::channel::{BTCSignTransactionState};
+use crate::utils::styles;
+use arboard::Clipboard; 
 
-use egui::{Ui, Color32, Vec2, Pos2, Align2, Area, Frame};
-use crate::channel::{CHANNEL, SignTransaction, SignTransactionState, WSCommand};
-use uuid::Uuid;
+pub mod step1;
+pub mod step2;
+pub mod step3; 
+pub mod step4;
+pub mod step5;
+pub mod sendlogic;
 
-pub fn view(ui: &mut Ui, send_state: &mut SignTransaction, commands_tx: tokio::sync::mpsc::Sender<WSCommand>) -> bool {
-    let theme_rx = CHANNEL.theme_user_rx.clone();
-    let sign_transaction_tx = CHANNEL.sign_transaction_tx.clone();
-    let bitcoin_wallet_rx = CHANNEL.bitcoin_wallet_rx.clone();
-    let rates_rx = CHANNEL.rates_rx.clone();
-    let is_dark_mode = theme_rx.borrow().0;
+#[component]
+pub fn view() -> Element {
+    let btc_ctx = use_context::<BtcContext>();
+    let mut btc_sign_transaction = btc_ctx.btc_sign_transaction;
+    let mut btc_modal = btc_ctx.btc_modal;
+    
+    let sign_state = btc_sign_transaction.read();
+    let current_send = &sign_state.send_transaction;
 
-    // Clone inner data
-    let (balance, btc_address, _private_key_deleted) = bitcoin_wallet_rx.borrow().clone();
-    let rates = rates_rx.borrow().clone();
-    let exchange_rate = rates.get("BTC/USD").copied().unwrap_or(0.0) as f64;
+    let on_back_click = move |_| {
+    if let Ok(mut ctx) = Clipboard::new() {
+        let _ = ctx.set_text("");
+    }
 
-    // Local state from caller
-    let mut local_state = send_state.clone();
-    let mut should_close = false;
-
-    // Get or initialize buffer_id
-    let buffer_id = if let Some(id) = local_state.buffer_id.clone() {
-        id
-    } else {
-        let new_id = Uuid::new_v4().to_string();
-        local_state.buffer_id = Some(new_id.clone());
-        new_id
+    btc_sign_transaction.with_mut(|state: &mut BTCSignTransactionState| {
+        if let Some(ref mut send) = state.send_transaction {
+            if send.step == 1 {
+                // --- CLEAN ARCHITECTURE ROUTING ---
+                btc_modal.with_mut(|m| {
+                    // Go back to the bookmarked view (unwrapping the Option)
+                    m.view_type = m.last_view.clone().unwrap();
+                });
+                state.send_transaction = None;
+                // ----------------------------------
+            } else {
+                send.step -= 1;
+            }
+            }
+        });
     };
 
-    // Get buffers
-    let (mut address_buffer, mut btc_amount_buffer, mut usd_amount_buffer, mut passphrase_buffer, mut custom_fee_buffer, mut seed_words, mut input_mode) = get_buffers(&buffer_id);
+    rsx! {
+        style { {r#"
+            .send-container {
+                display: flex;
+                flex-direction: column;
+                width: 100%;
+                position: relative;
+            }
+            .content-wrapper {
+                flex: 1;
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                width: 100%;
+            }
+            .back-button-container {
+                position: absolute;
+                top: 0.75rem;
+                left: 0.75rem;
+                cursor: pointer;
+                z-index: 10;
+            }
+        "#} }
 
-    // Update modal state with buffer_id if changed
-    if local_state.buffer_id != send_state.buffer_id {
-        let _ = sign_transaction_tx.send(SignTransactionState {
-            send_transaction: Some(local_state.clone()),
-        });
+        div { class: "send-container",
+            div {
+                class: "back-button-container",
+                onclick: on_back_click,
+                styles::previous_icon_button { text_color: "#fff".to_string() }
+            }
+
+            div { class: "content-wrapper",
+                // Mirroring the if let Some logic from import
+                if let Some(send_state) = current_send {
+                    match send_state.step {
+                        1 => rsx! { step1::view {} },
+                        2 => rsx! { step2::view {} }, // 2. Add the match arm
+                        3 => rsx! { step3::view {} }, // 2. Add the match arm
+                    4 => rsx! { step4::view {} }, // 2. Added Step 3
+                        5 => rsx! { step5::view {} }, // 3. View added
+                        _ => rsx! { div { "Step {send_state.step} not implemented" } }
+                       
+                    }
+                }
+            }
+        }
     }
-
-    // Define text color
-    let text_color = styles::get_text_color(is_dark_mode);
-
-    // Define modal size (increased height for back button)
-    let modal_size = Vec2::new(350.0, 150.0);
-    let screen_size = ui.ctx().input(|i| i.screen_rect.size());
-    let pos = Pos2::new(
-        (screen_size.x - modal_size.x) / 2.0,
-        (screen_size.y - modal_size.y) / 2.0,
-    );
-
-    // Create overlay area
-    Area::new(egui::Id::new(format!("send_btc_overlay_{}", buffer_id)))
-        .fixed_pos(pos)
-        .anchor(Align2::CENTER_CENTER, Vec2::splat(0.0))
-        .show(ui.ctx(), |ui| {
-            // Semi-transparent background
-            ui.painter().rect_filled(
-                ui.ctx().input(|i| i.screen_rect),
-                0.0,
-                Color32::from_black_alpha(200),
-            );
-
-            // Modal frame
-            Frame::group(ui.style())
-                .fill(styles::modal_fill(is_dark_mode))
-                .stroke(styles::modal_stroke())
-                .outer_margin(0.0)
-                .inner_margin(10.0)
-                .show(ui, |ui| {
-                    ui.set_min_size(modal_size);
-                    ui.set_max_size(modal_size);
-
-                    // Add close button
-                    styles::close_button(ui, &buffer_id, &mut should_close);
-
-                    // Render content based on step
-                    ui.allocate_ui_with_layout(
-                        modal_size,
-                        egui::Layout::top_down(egui::Align::Center),
-                        |ui| {
-                            match local_state.step {
-                                1 => render_step1(
-                                    ui,
-                                    &mut local_state,
-                                    &mut address_buffer,
-                                    &mut btc_amount_buffer,
-                                    &mut usd_amount_buffer,
-                                    &passphrase_buffer,
-                                    &buffer_id,
-                                    balance,
-                                    exchange_rate,
-                                    is_dark_mode,
-                                    text_color,
-                                    &sign_transaction_tx,
-                                    &mut custom_fee_buffer,
-                                    &mut seed_words,
-                                    &mut input_mode,
-                                ),
-                                2 => render_step2(
-                                    ui,
-                                    &mut local_state,
-                                    &mut address_buffer,
-                                    &mut btc_amount_buffer,
-                                    &mut usd_amount_buffer,
-                                    &passphrase_buffer,
-                                    &buffer_id,
-                                    balance,
-                                    exchange_rate,
-                                    btc_address.clone(),
-                                    is_dark_mode,
-                                    text_color,
-                                    &sign_transaction_tx,
-                                    commands_tx.clone(),
-                                    &mut custom_fee_buffer,
-                                    &mut seed_words,
-                                    &mut input_mode,
-                                ),
-                                3 => render_step3(
-                                    ui,
-                                    &mut local_state,
-                                    &mut address_buffer,
-                                    &mut btc_amount_buffer,
-                                    &mut usd_amount_buffer,
-                                    &mut passphrase_buffer,
-                                    &buffer_id,
-                                    balance,
-                                    exchange_rate,
-                                    btc_address.clone(),
-                                    is_dark_mode,
-                                    text_color,
-                                    &sign_transaction_tx,
-                                    commands_tx.clone(),
-                                    &mut custom_fee_buffer,
-                                    &mut seed_words,
-                                    &mut input_mode,
-                                ),
-                                _ => {} // Handle invalid step
-                            }
-                        },
-                    );
-                });
-        });
-
-    // Handle close
-    if should_close {
-        let _ = sign_transaction_tx.send(SignTransactionState { send_transaction: None });
-        clear_buffer(&buffer_id);
-    }
-
-    // Update caller’s state
-    *send_state = local_state;
-    should_close
 }

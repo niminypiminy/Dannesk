@@ -1,84 +1,91 @@
-use egui::{Ui, Vec2, Pos2, Align2, Area, Frame, Color32};
-use crate::channel::{BTCImport, BTCModalState, BTCActiveView, WSCommand};
-use tokio::sync::mpsc;
+// src/ui/managebtc/xrpimport/mod.rs
+use dioxus::prelude::*;
+use crate::context::BtcContext;
+use crate::channel::{BTCActiveView}; 
+use crate::utils::styles;
+use arboard::Clipboard;  
 
-pub mod buffers;
+
 pub mod step1;
 pub mod step2;
-pub mod styles;
+pub mod btcimportlogic;
 
-pub fn view(ui: &mut Ui, import_state: &mut BTCImport, commands_tx: mpsc::Sender<WSCommand>) -> bool {
-    let theme_rx = crate::channel::CHANNEL.theme_user_rx.clone();
-    let btc_modal_tx = crate::channel::CHANNEL.btc_modal_tx.clone();
-    let is_dark_mode = theme_rx.borrow().0;
+#[component]
+pub fn view() -> Element {
+    let btc_ctx = use_context::<BtcContext>();
+    
+    let mut btc_wallet_process = btc_ctx.btc_wallet_process;
+    let mut btc_modal = btc_ctx.btc_modal;
 
-    let buffer_id = buffers::get_or_init_buffer_id(import_state);
+    // This keeps your existing RSX working
+    let modal_state = btc_wallet_process.read();
+    
+    let on_back_click = move |_| {
+        // 1. Clear clipboard immediately
+        if let Ok(mut ctx) = Clipboard::new() {
+            let _ = ctx.set_text("");
+        }
 
-    if import_state.buffer_id != Some(buffer_id.clone()) {
-        import_state.buffer_id = Some(buffer_id.clone());
-        let _ = btc_modal_tx.send(BTCModalState {
-            import_wallet: Some(import_state.clone()),
-            create_wallet: None,
-            view_type: BTCActiveView::BTC,
+        // 2. Handle Data: Step down 
+        btc_wallet_process.with_mut(|state| {
+            if let Some(ref mut import) = state.import_wallet {
+                if import.step == 1 {
+                    state.import_wallet = None; 
+                } else {
+                    import.step = 1;
+                }
+            }
         });
+
+        // 3. Handle Navigation: If data was cleared, go back to main view
+        if btc_wallet_process.read().import_wallet.is_none() {
+            btc_modal.with_mut(|state| {
+                state.view_type = BTCActiveView::BTC;
+            });
+        }
+    };
+
+    rsx! {
+        style { {r#"
+            .import-container {
+                display: flex;
+                flex-direction: column;
+                width: 100%;
+                position: relative;
+            }
+            .content-wrapper {
+                flex: 1;
+                display: flex;
+                flex-direction: column;
+                width: 100%;
+                justify-content: center; 
+            }
+            .back-button-container {
+                position: absolute;
+                top: 0.75rem;
+                left: 0.75rem;
+                cursor: pointer;
+                z-index: 10;
+            }
+        "#} }
+
+        div { class: "import-container",
+            // SHARED BACK BUTTON
+            div { 
+                class: "back-button-container",
+                onclick: on_back_click,
+                styles::previous_icon_button { text_color: "#fff".to_string() }
+            }
+
+            div { class: "content-wrapper",
+                if let Some(import_state) = &modal_state.import_wallet {
+                    match import_state.step {
+                        1 => rsx! { step1::view {} },
+                        2 => rsx! { step2::view {} },
+                        _ => rsx! {}
+                    }
+                }
+            }
+        }
     }
-
-    let mut should_close = false;
-
-    let screen_size = ui.ctx().input(|i| i.screen_rect.size());
-    let modal_size = Vec2::new(450.0, 50.0); // Sized for 4x6 grid + UI elements
-    let pos = Pos2::new(
-        (screen_size.x - modal_size.x) / 2.0,
-        (screen_size.y - modal_size.y) / 2.0,
-    );
-
-    Area::new(egui::Id::new(format!("import_wallet_overlay_{}", buffer_id)))
-        .fixed_pos(pos)
-        .anchor(Align2::CENTER_CENTER, Vec2::splat(0.0))
-        .show(ui.ctx(), |ui| {
-            ui.painter().rect_filled(
-                ui.ctx().input(|i| i.screen_rect),
-                0.0,
-                Color32::from_black_alpha(200),
-            );
-
-            Frame::group(ui.style())
-                .fill(styles::modal_fill(is_dark_mode))
-                .stroke(styles::modal_stroke())
-                .outer_margin(0.0)
-                .inner_margin(10.0)
-                .show(ui, |ui| {
-                    ui.set_min_size(modal_size);
-                    ui.set_max_size(modal_size);
-
-                    styles::close_button(ui, &buffer_id, &mut should_close);
-
-                    ui.allocate_ui_with_layout(
-                        modal_size,
-                        egui::Layout::top_down(egui::Align::Center),
-                        |ui| {
-                            if import_state.step == 1 {
-                                step1::render(ui, import_state, &buffer_id);
-                            } else if import_state.step == 2 {
-                                step2::render(ui, import_state, &buffer_id, commands_tx.clone());
-                            }
-                        },
-                    );
-                });
-        });
-
-    if should_close || import_state.done {
-        // Clear the buffer_id from import_state
-        import_state.buffer_id = None;
-        // Clear sensitive data from BUFFER_STORAGE
-        buffers::clear_buffer(&buffer_id);
-        // Reset modal state
-        let _ = btc_modal_tx.send(BTCModalState {
-            import_wallet: None,
-            create_wallet: None,
-            view_type: BTCActiveView::BTC,
-        });
-    }
-
-    should_close || import_state.done
 }

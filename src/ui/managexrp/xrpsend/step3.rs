@@ -1,195 +1,99 @@
-use egui::{Ui, Margin, Color32, RichText, Frame, Grid};
-use crate::channel::{CHANNEL, SignTransaction, SignTransactionState, ProgressState, WSCommand};
-use super::buffer_manager::{BufferManager, InputMode};
-use super::styles::styled_text_edit;
-use tokio::sync::mpsc;
+// src/ui/managexrp/xrpsend/step3.rs
 
-pub fn render_step3(
-    ui: &mut Ui,
-    local_state: &mut SignTransaction,
-    buffer_manager: &mut BufferManager, // Replace individual buffers with BufferManager
-    balance: f64,
-    _exchange_rate: f64,
-    wallet_address: Option<String>,
-    is_dark_mode: bool,
-    text_color: Color32,
-    sign_transaction_tx: &tokio::sync::watch::Sender<SignTransactionState>,
-    commands_tx: mpsc::Sender<WSCommand>,
-) {
-    Frame::default()
-        .outer_margin(Margin {
-            left: 36,
-            right: 0,
-            top: 8,
-            bottom: 8,
-        })
-        .show(ui, |ui| {
-            ui.vertical(|ui| {
-                ui.heading(RichText::new("Confirm Transaction").size(18.0).color(text_color));
-                ui.add_space(8.0);
+use dioxus::prelude::*;
+use crate::context::{XrpContext, GlobalContext};
 
-                Grid::new("transaction_details_grid")
-                    .striped(true)
-                    .num_columns(2)
-                    .spacing([10.0, 5.0])
-                    .min_col_width(100.0)
-                    .show(ui, |ui| {
-                        ui.label(RichText::new("Item").size(14.0).strong().color(text_color));
-                        ui.label(RichText::new("Value").size(14.0).strong().color(text_color));
-                        ui.end_row();
+#[component]
+pub fn view() -> Element {
+    let xrp_ctx = use_context::<XrpContext>();
+    let global = use_context::<GlobalContext>();
+    
+    let mut sign_transaction = xrp_ctx.sign_transaction;
+    let rates = global.rates.read();
+    let exchange_rate = rates.get("XRP/USD").copied().unwrap_or(0.0) as f64;
+    
+    let sign_state = sign_transaction.read();
+    let send_data = sign_state.send_transaction.as_ref();
 
-                        ui.label(RichText::new("Recipient").size(14.0).color(text_color));
-                        ui.label(
-                            RichText::new(buffer_manager.address_buffer())
-                                .size(14.0)
-                                .color(text_color),
-                        );
-                        ui.end_row();
+    let recipient = send_data.and_then(|s| s.recipient.clone()).unwrap_or_else(|| "N/A".into());
+    let amount = send_data.and_then(|s| s.amount.clone()).unwrap_or_else(|| "0".into());
+    let asset = send_data.map(|s| s.asset.clone()).unwrap_or_else(|| "XRP".into());
 
-                        ui.label(RichText::new("Amount").size(14.0).color(text_color));
-                        ui.label(
-                            RichText::new(format!("{} XRP", buffer_manager.xrp_amount_buffer()))
-                                .size(14.0)
-                                .color(text_color),
-                        );
-                        ui.end_row();
+    let usd_amount = if asset == "XRP" {
+        if let Ok(amt) = amount.parse::<f64>() {
+            format!("{:.2}", amt * exchange_rate)
+        } else {
+            "0.00".into()
+        }
+    } else {
+        amount.clone()
+    };
 
-                        ui.label(RichText::new("Exchange").size(14.0).color(text_color));
-                        ui.label(
-                            RichText::new(format!("${}", buffer_manager.usd_amount_buffer()))
-                                .size(14.0)
-                                .color(text_color),
-                        );
-                        ui.end_row();
-                    });
-
-                ui.add_space(12.0);
-
-                // Convert String to InputMode for UI
-                let mut current_mode = InputMode::from_string(buffer_manager.input_mode());
-
-                // Input mode selection
-                ui.horizontal(|ui| {
-                    if ui.radio_value(&mut current_mode, InputMode::Passphrase, "Passphrase").clicked() {
-                        buffer_manager.set_input_mode(InputMode::Passphrase);
-                    }
-                    if ui.radio_value(&mut current_mode, InputMode::Seed, "Seed").clicked() {
-                        buffer_manager.set_input_mode(InputMode::Seed);
-                    }
-                });
-
-                ui.add_space(8.0);
-
-                // Conditional input field
-                match current_mode {
-                    InputMode::Passphrase => {
-                        ui.label(RichText::new("Passphrase").size(16.0).color(text_color))
-                            .on_hover_text("Enter your passphrase (if stored in keyring) to sign the transaction.");
-                        ui.add_space(4.0);
-                        let mut temp_passphrase = buffer_manager.passphrase_buffer().to_string();
-                        let passphrase_edit = styled_text_edit(ui, &mut temp_passphrase, 300.0, is_dark_mode, true);
-                        if passphrase_edit.changed() {
-                            local_state.error = None;
-                            buffer_manager.update_passphrase(&temp_passphrase);
-                        }
-                    }
-                    InputMode::Seed => {
-                        ui.label(RichText::new("Seed").size(16.0).color(text_color))
-                            .on_hover_text("Enter your seed to sign the transaction.");
-                        ui.add_space(4.0);
-                        let mut temp_seed = buffer_manager.seed_buffer().to_string();
-                        let seed_edit = styled_text_edit(ui, &mut temp_seed, 300.0, is_dark_mode, true);
-                        if seed_edit.changed() {
-                            local_state.error = None;
-                            buffer_manager.update_seed(&temp_seed);
-                        }
-                    }
-                }
-
-                if let Some(error) = &local_state.error {
-                    ui.add_space(8.0);
-                    ui.colored_label(Color32::RED, error);
-                }
-
-                ui.add_space(12.0);
-                ui.horizontal(|ui| {
-                    let original_visuals = ui.visuals().clone();
-                    if !is_dark_mode {
-                        ui.visuals_mut().widgets.inactive.fg_stroke = egui::Stroke::new(1.0, text_color);
-                        ui.visuals_mut().widgets.active.fg_stroke = egui::Stroke::new(2.0, text_color);
-                    }
-                    Frame::new()
-                        .inner_margin(Margin::symmetric(0, 4))
-                        .show(ui, |ui| {
-                            let submit_button = ui.add(
-                                egui::Button::new(RichText::new("Submit").size(14.0).color(text_color))
-                                    .min_size(egui::Vec2::new(80.0, 28.0)),
-                            );
-                            if submit_button.clicked() {
-                                let trimmed_passphrase = buffer_manager.passphrase_buffer().trim();
-                                let trimmed_seed = buffer_manager.seed_buffer().trim();
-                                let trimmed_address = buffer_manager.address_buffer().trim();
-                                let trimmed_xrp_amount = buffer_manager.xrp_amount_buffer().trim();
-
-                                // Ensure exactly one input is provided
-                                let (passphrase, seed) = match (trimmed_passphrase.is_empty(), trimmed_seed.is_empty()) {
-                                    (true, true) => {
-                                        local_state.error = Some("Either passphrase or seed must be provided.".to_string());
-                                        return;
-                                    }
-                                    (false, false) => {
-                                        local_state.error = Some("Provide only one: passphrase or seed.".to_string());
-                                        return;
-                                    }
-                                    (false, true) => (Some(trimmed_passphrase.to_string()), None),
-                                    (true, false) => (None, Some(trimmed_seed.to_string())),
-                                };
-
-                                if let Ok(amount) = trimmed_xrp_amount.parse::<f64>() {
-                                    if amount <= 0.0 {
-                                        local_state.error = Some("Amount must be greater than zero.".to_string());
-                                    } else if amount > balance - 1.0 {
-                                        local_state.error = Some("Insufficient funds: 1 XRP reserve required.".to_string());
-                                    } else if !trimmed_address.starts_with('r') || trimmed_address.len() != 34 {
-                                        local_state.error = Some("Invalid XRP address.".to_string());
-                                    } else if wallet_address.is_none() {
-                                        local_state.error = Some("No wallet address found.".to_string());
-                                    } else {
-                                        let _ = CHANNEL.progress_tx.send(Some(ProgressState {
-                                            progress: 0.0,
-                                            message: "Starting transaction".to_string(),
-                                        }));
-                                        ui.ctx().request_repaint();
-
-                                        let command = WSCommand {
-                                            command: "submit_transaction".to_string(),
-                                            wallet: Some(wallet_address.unwrap()),
-                                            recipient: Some(trimmed_address.to_string()),
-                                            amount: Some(trimmed_xrp_amount.to_string()),
-                                            passphrase,
-                                            seed,
-                                            trustline_limit: None,
-                                            tx_type: Some("payment".to_string()),
-                                            taker_pays: None,
-                                            taker_gets: None,
-                                            flags: None,
-                                            wallet_type: Some("XRP".to_string()),
-                                        };
-                                        let _ = commands_tx.try_send(command);
-                                        local_state.loading = true;
-                                    }
-                                } else {
-                                    local_state.error = Some("Invalid amount format.".to_string());
-                                }
-
-                                let _ = sign_transaction_tx.send(SignTransactionState {
-                                    send_transaction: Some(local_state.clone()),
-                                });
-                                ui.ctx().request_repaint();
-                            }
-                        });
-                    ui.visuals_mut().widgets = original_visuals.widgets;
-                });
-            });
+    let on_confirm_click = move |_| {
+        sign_transaction.with_mut(|state| {
+            if let Some(ref mut send) = state.send_transaction {
+                send.step = 4;
+                send.error = None;
+            }
         });
+    };
+
+
+    rsx! {
+        div {
+            style: "display: flex; flex-direction: column; width: 100%; align-items: center;",
+
+
+            // Grid container - 33rem max width to match Step 1 input width
+            div {
+                style: "width: 100%; max-width: 33rem; background-color: #1a1a1a; border: 1px solid #333; border-radius: 0.25rem; display: flex; flex-direction: column;",
+                
+                ReviewRow { label: "Recipient".to_string(), value: recipient, is_alt: false }
+                ReviewRow { label: format!("Amount ({asset})"), value: format!("{amount} {asset}"), is_alt: true }
+                
+                if asset != "RLUSD" {
+                    ReviewRow { label: "Amount (USD)".to_string(), value: format!("${usd_amount}"), is_alt: false }
+                }
+                
+                ReviewRow { 
+                    label: "Network".to_string(), 
+                    value: "XRP Ledger".to_string(), 
+                    is_alt: asset != "RLUSD"
+                }
+            }
+
+            // Warning Text
+            div { 
+                style: "width: 100%; max-width: 33rem; padding: 1.5rem 0;",
+                p { 
+                    style: "font-size: 0.875rem; color: #777; text-align: center; font-family: monospace; line-height: 1.4; margin: 0;",
+                    "Verify the recipient address carefully. Ledger transactions cannot be undone."
+                }
+            }
+
+            // Button - EXACT COPY of Step 1 and Step 4
+            button {
+                style: "width: 8.75rem; height: 2.25rem; background-color: #333; color: white; border: none; border-radius: 1.375rem; font-size: 1rem; display: flex; cursor: pointer; justify-content: center; align-items: center; margin-top: 1rem;",
+                onclick: on_confirm_click,
+                "Continue"
+            }
+        }
+    }
+}
+
+#[component]
+fn ReviewRow(label: String, value: String, is_alt: bool) -> Element {
+    let bg = if is_alt { "#222" } else { "#1a1a1a" };
+    
+    rsx! {
+        div {
+            // Using padding-top/bottom to define height exactly for the native renderer
+            style: "display: flex; flex-direction: row; justify-content: space-between; align-items: center; padding: 1.25rem 1rem; background-color: {bg}; border-bottom: 1px solid #2a2a2a;",
+            span { style: "font-size: 1rem; color: #999; font-family: monospace;", "{label}" }
+            span { 
+                style: "font-size: 1rem; color: white; font-weight: bold; text-align: right; flex: 1; margin-left: 2rem; word-break: break-all; font-family: monospace;", 
+                "{value}" 
+            }
+        }
+    }
 }

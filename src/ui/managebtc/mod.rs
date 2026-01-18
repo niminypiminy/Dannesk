@@ -1,186 +1,161 @@
-use egui::{Ui, RichText};
-use crate::channel::{CHANNEL, BTCModalState, BTCImport, BTCActiveView, WSCommand, SignTransactionState};
-use tokio::sync::mpsc;
-use crate::utils::svg_render::SvgCanvas; // Import SvgCanvas
-use uuid::Uuid;
+// src/ui/managebtc/mod.rs
+use dioxus::prelude::*;
+use crate::context::BtcContext;
+use crate::channel::{BTCImport, BTCActiveView};
+use bip39::{Mnemonic, Language};
+use rand::{thread_rng, RngCore};
+use zeroize::Zeroizing; 
+use crate::utils::transactionssvg::TransactionsIcon;
 
 pub mod btcimport;
+pub mod btcbalance; 
+pub mod receive; 
+pub mod btcsend; 
+pub mod btctransactions; 
 pub mod btccreate;
-pub mod btcsend;
-pub mod btcbalance;
-pub mod btctransactions;
 
-pub fn render_manage_btc(ui: &mut Ui, commands_tx: mpsc::Sender<WSCommand>) {
-    let bitcoin_wallet_rx = crate::channel::CHANNEL.bitcoin_wallet_rx.clone();
-    let btc_modal_rx = crate::channel::CHANNEL.btc_modal_rx.clone();
-    let btc_modal_tx = crate::channel::CHANNEL.btc_modal_tx.clone();
-    let sign_transaction_rx = crate::channel::CHANNEL.sign_transaction_rx.clone();
-    let sign_transaction_tx = crate::channel::CHANNEL.sign_transaction_tx.clone();
-    let theme_user_rx = CHANNEL.theme_user_rx.clone();
+#[component]
+pub fn render_manage_btc() -> Element {
+    let btc_ctx = use_context::<BtcContext>();
+    
+    let mut btc_modal = btc_ctx.btc_modal; 
+    let mut btc_wallet_process = btc_ctx.btc_wallet_process; 
 
-    let (_btc_balance, btc_wallet_address, _private_key_deleted) = bitcoin_wallet_rx.borrow().clone();
-    let btc_modal_state = btc_modal_rx.borrow().clone();
-    let sign_transaction_state = sign_transaction_rx.borrow().clone();
-    let (is_dark_mode, _, _hide_balance) = theme_user_rx.borrow().clone();
+    let view_type = btc_modal.read().view_type; 
+    let (_balance, address_opt, _) = btc_ctx.bitcoin_wallet.read().clone();
+    let has_wallet = address_opt.is_some();
+    
+    // --- THE GATE ---
+    match view_type {
+        BTCActiveView::Import       => return rsx! { btcimport::view {} },
+        BTCActiveView::Create       => return rsx! { btccreate::view {} },
+        BTCActiveView::Send         => return rsx! { btcsend::view {} },
+        BTCActiveView::Transactions => return rsx! { btctransactions::view {} },
+        BTCActiveView::Receive      => return rsx! { receive::view {} },
+        BTCActiveView::BTC          => {} 
+    }
 
-    // Define text color based on theme for non-button text
-    let text_color = if is_dark_mode {
-        egui::Color32::from_rgb(255, 254, 250) // #fffefa for dark theme
-    } else {
-        egui::Color32::from_rgb(34, 34, 34) // #2d3a4b for light theme
+    // --- EVENT HANDLERS ---
+    let on_import_click = move |_| {
+        btc_wallet_process.with_mut(|state| {
+            state.import_wallet = Some(BTCImport { step: 1, seed: None, error: None });
+        });
+        btc_modal.with_mut(|s| s.view_type = BTCActiveView::Import);
     };
 
-    ui.vertical(|ui| {
-        // Handle import modal
-        if let Some(mut import_state) = btc_modal_state.import_wallet {
-            let should_close = btcimport::view(ui, &mut import_state, commands_tx.clone());
-            let new_state = BTCModalState {
-                import_wallet: if should_close || import_state.done { None } else { Some(import_state.clone()) },
-                create_wallet: None,
-                view_type: if should_close || import_state.done {
-                    BTCActiveView::BTC
-                } else {
-                    btc_modal_state.view_type
-                },
-            };
-            let _ = btc_modal_tx.send(new_state);
-            ui.ctx().request_repaint();
-            return;
-        }
+    let on_create_click = move |_| {
+        let mut entropy = [0u8; 32];
+        thread_rng().fill_bytes(&mut entropy);
+        let mnemonic = Mnemonic::from_entropy_in(Language::English, &entropy).unwrap();
+        let seed = Zeroizing::new(mnemonic.to_string());
 
-        // Handle create modal
-        if let Some(mut create_state) = btc_modal_state.create_wallet {
-            let should_close = btccreate::view(ui, &mut create_state, commands_tx.clone());
-            let new_state = BTCModalState {
-                import_wallet: None,
-                create_wallet: if should_close || create_state.done { None } else { Some(create_state.clone()) },
-                view_type: if should_close || create_state.done {
-                    BTCActiveView::BTC
-                } else {
-                    btc_modal_state.view_type
-                },
-            };
-            let _ = btc_modal_tx.send(new_state);
-            ui.ctx().request_repaint();
-            return;
-        }
-
-        // Handle other views
-        match btc_modal_state.view_type {
-            BTCActiveView::BTC => {
-                if btc_wallet_address.is_none() {
-                    let title_height = 30.0;
-                    let button_height = 36.0;
-                    let total_content_height = title_height + (20.0 * 2.0) + (button_height * 2.0);
-
-                    ui.add_space((ui.available_height() - total_content_height) / 2.0);
-
-                    ui.vertical_centered(|ui| {
-                        ui.label(RichText::new("Manage Bitcoin Wallet").size(30.0).color(text_color));
-                        ui.add_space(20.0);
-
-                        ui.style_mut().spacing.button_padding = egui::vec2(20.0, 10.0);
-                        ui.style_mut().visuals.widgets.inactive.corner_radius = egui::CornerRadius::same(12);
-                        ui.style_mut().visuals.widgets.hovered.corner_radius = egui::CornerRadius::same(12);
-                        ui.style_mut().visuals.widgets.active.corner_radius = egui::CornerRadius::same(12);
-
-                        if ui.button(RichText::new("Create Wallet").size(16.0).extra_letter_spacing(1.2).color(text_color)).clicked() {
-                            let _ = btc_modal_tx.send(BTCModalState {
-                                import_wallet: None,
-                                create_wallet: Some(BTCImport {
-                                    step: 1,
-                                    loading: false,
-                                    seed: None,
-                                    error: None,
-                                    done: false,
-                                    buffer_id: Some(Uuid::new_v4().to_string()),
-                                }),
-                                view_type: BTCActiveView::BTC,
-                            });
-                            ui.ctx().request_repaint();
-                        }
-
-                        ui.add_space(20.0);
-
-                        if ui.button(RichText::new("Import Wallet").size(16.0).extra_letter_spacing(1.2).color(text_color)).clicked() {
-                            let _ = btc_modal_tx.send(BTCModalState {
-                                import_wallet: Some(BTCImport {
-                                    step: 1,
-                                    loading: false,
-                                    seed: None,
-                                    error: None,
-                                    done: false,
-                                    buffer_id: Some(Uuid::new_v4().to_string()),
-                                }),
-                                create_wallet: None,
-                                view_type: BTCActiveView::BTC,
-                            });
-                            ui.ctx().request_repaint();
-                        }
-                    });
-                } else {
-                    // Render balance view
-                    ui.allocate_ui(egui::vec2(ui.available_width(), ui.available_height() * 0.9), |ui| {
-                        btcbalance::render_btc_balance(ui, commands_tx.clone());
-                    });
-                    ui.add_space(10.0);
-                    ui.horizontal(|ui| {
-    ui.spacing_mut().item_spacing.x = 8.0; // Tighter spacing
-    let button_width = 40.0; // Consistent button width
-
-    // Place transactions button on the left
-  ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
-    if ui.add_sized(
-        [button_width, 28.0],
-        egui::Button::image(
-            SvgCanvas::paint_svg("transfer.svg")
-                .fit_to_exact_size(egui::vec2(16.0, 16.0))
-                .tint(text_color), // Apply theme-aware tint
-        ),
-    ).clicked() {
-        let _ = btc_modal_tx.send(BTCModalState {
-            import_wallet: None,
-            create_wallet: None,
-            view_type: BTCActiveView::Transactions,
+        btc_wallet_process.with_mut(|state| {
+            state.create_wallet = Some(BTCImport { step: 1, seed: Some(seed), error: None });
         });
-        ui.ctx().request_repaint();
-    }
-});
-                    });
+        btc_modal.with_mut(|s| s.view_type = BTCActiveView::Create);
+    };
+
+    // --- RENDER ---
+    rsx! {
+        style { {r#"
+            .wallet-main-container { 
+                display: flex; 
+                flex-direction: row; 
+                align-items: center; 
+                justify-content: center; 
+                width: 100%; 
+                position: relative; 
+                height: 100%;
+            }
+            .side-dock-container { 
+                position: absolute; 
+                left: 2rem; 
+                display: flex; 
+                flex-direction: column; 
+                gap: 0.5rem; 
+                padding: 1rem 0.5rem; 
+                background-color: rgba(30, 30, 30, 0.8); 
+                border-radius: 2rem; 
+                border: 1px solid rgba(255, 255, 255, 0.1); 
+                align-items: center; 
+                visibility: hidden; 
+            }
+            .right-dock-container { 
+                position: absolute; 
+                right: 2rem; 
+                display: flex; 
+                flex-direction: column; 
+                gap: 0.5rem; 
+                padding: 1rem 0.5rem; 
+                background-color: rgba(30, 30, 30, 0.8); 
+                border-radius: 2rem; 
+                border: 1px solid rgba(255, 255, 255, 0.1); 
+                align-items: center; 
+            }
+            .manage-grid { display: grid; grid-template-columns: 1fr; gap: 1rem; max-width: 22rem; }
+            .manage-btn { padding: 1rem 3rem; font-size: 1rem; border-radius: 1rem; border: 1px solid #444; background: var(--btn); color: #fff; cursor: pointer; }
+        "#} }
+
+        div { class: "wallet-main-container",
+            if has_wallet {
+                div { class: "side-dock-container" } 
+            }
+
+            if !has_wallet {
+                div { class: "manage-grid",
+                    button { class: "manage-btn", onclick: on_create_click, "Create Wallet" }
+                    button { class: "manage-btn", onclick: on_import_click, "Import Wallet" }
+                }
+            } else {
+                btcbalance::view {}
+            }
+
+            if has_wallet {
+                div { class: "right-dock-container",
+                    render_btc_transactions_toggle { 
+                        is_active: matches!(view_type, BTCActiveView::Transactions), 
+                        onclick: move |_| { 
+                            btc_modal.with_mut(|s| s.view_type = BTCActiveView::Transactions);
+                        }
+                    } 
                 }
             }
-            BTCActiveView::Receive => {
-                let should_close = btcbalance::receivebtc::render(ui, &btc_wallet_address);
-                let new_state = BTCModalState {
-                    import_wallet: None,
-                    create_wallet: None,
-                    view_type: if should_close { BTCActiveView::BTC } else { BTCActiveView::Receive },
-                };
-                let _ = btc_modal_tx.send(new_state);
-                ui.ctx().request_repaint();
-            }
-            BTCActiveView::Transactions => {
-                let should_close = btctransactions::render(ui);
-                let new_state = BTCModalState {
-                    import_wallet: None,
-                    create_wallet: None,
-                    view_type: if should_close { BTCActiveView::BTC } else { BTCActiveView::Transactions },
-                };
-                let _ = btc_modal_tx.send(new_state);
-                ui.ctx().request_repaint();
-            }
         }
+    }
+}
 
-        // Handle sign transaction
-        if let Some(mut send_state) = sign_transaction_state.send_transaction {
-            let should_close = btcsend::view(ui, &mut send_state, commands_tx.clone());
-            let new_state = if should_close || send_state.done {
-                SignTransactionState { send_transaction: None }
-            } else {
-                SignTransactionState { send_transaction: Some(send_state) }
-            };
-            let _ = sign_transaction_tx.send(new_state);
-            ui.ctx().request_repaint();
+// --- HELPER COMPONENTS (Moved outside main function to avoid delimiter errors) ---
+
+fn dock_base_style(bg: &str, color: &str) -> String {
+    format!(
+        "padding: 0.6rem; border-radius: 1.2rem; border: none; cursor: pointer; \
+         display: flex; align-items: center; justify-content: center; \
+         background-color: {}; color: {}; transition: all 0.2s ease;",
+        bg, color
+    )
+}
+
+#[component]
+fn render_btc_transactions_toggle(is_active: bool, onclick: EventHandler<MouseEvent>) -> Element {
+    let (bg, icon) = if is_active { ("white", "black") } else { ("transparent", "#aaa") };
+    rsx! {
+        button {
+            style: dock_base_style(bg, icon),
+            onclick: move |e| onclick.call(e),
+            TransactionsIcon {}
         }
-    });
+    }
+}
+
+#[component]
+fn DockButton(label: String, is_active: bool, onclick: EventHandler<MouseEvent>) -> Element {
+    let (bg, text) = if is_active { ("white", "black") } else { ("transparent", "#aaa") };
+    let font_weight = if is_active { "bold" } else { "normal" };
+    rsx! {
+        button {
+            style: "{dock_base_style(bg, text)} padding: 0.6rem 1rem; font-weight: {font_weight};",
+            onclick: onclick,
+            "{label}"
+        }
+    }
 }

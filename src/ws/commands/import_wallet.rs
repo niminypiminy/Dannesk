@@ -64,7 +64,6 @@ pub async fn process_response(message: Message, current_wallet: &str) -> Result<
                     .and_then(|b| b.parse::<f64>().ok())
                     .map(|b| b / 1_000_000.0)
                     .unwrap_or(0.0);
-                let is_active = data.get("xrp_active").and_then(|a| a.as_bool()).unwrap_or(false);
                 let has_rlusd = data.get("has_rlusd").and_then(|h| h.as_bool()).unwrap_or(false);
                 let rlusd_balance = data
                     .get("rlusd_balance")
@@ -89,10 +88,10 @@ pub async fn process_response(message: Message, current_wallet: &str) -> Result<
                 // UNCHANGED: Send balance updates (this sets the channel post-response)
 
                 // Send balance updates
-                let (_, _, _, private_key_deleted) = *CHANNEL.wallet_balance_rx.borrow();
+                let (_, _, private_key_deleted) = *CHANNEL.wallet_balance_rx.borrow();
                 CHANNEL
                     .wallet_balance_tx
-                    .send((balance_xrp, Some(wallet.to_string()), is_active, private_key_deleted))
+                    .send((balance_xrp, Some(wallet.to_string()), private_key_deleted))
                     .map_err(|e| {
                         let _ = CHANNEL.progress_tx.send(Some(ProgressState {
                             progress: 1.0,

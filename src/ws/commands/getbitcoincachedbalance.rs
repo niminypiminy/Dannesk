@@ -9,7 +9,7 @@ pub async fn execute(
     bitcoin_current_wallet: &mut String,
     cmd: WSCommand,
 ) -> Result<(), String> {
-    if let Some(wallet) = cmd.wallet {
+    if let Some(wallet) = &cmd.wallet {
         *bitcoin_current_wallet = wallet.clone();
         let msg_json = json!({ "command": "get_bitcoin_cached_balance", "wallet": wallet });
         if let Err(e) = connection.send(Message::Text(msg_json.to_string())).await {
