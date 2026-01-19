@@ -11,22 +11,20 @@
 
 ## Overview
 
-Dannesk is built around a local-first security model.  
-All keys, transactions, and cryptographic operations are handled directly on the user’s device. No backend custody, remote signing, or centralized control is involved.
-
-The application runs as a fully native desktop app with GPU-accelerated rendering.
+Dannesk is built around a local-first, client-side, security model.  
+All keys, transactions, and cryptographic operations are handled directly on the user’s device. No centralized control is involved.
 
 ---
 
 ## Features
 
 - Create and import wallets for **Bitcoin** and **XRP Ledger (XRPL)**
-- Trade stablecoins directly on the **XRPL decentralized exchange (DEX)**
+- Trade stablecoins directly on XRPL's decentralized exchange (DEX)
   - Supported assets:
     - **RLUSD** (Ripple)
     - **EUROP** (Schuman Financial)
-- Fully **client-side transaction signing**
-- **Non-custodial** key management
+- Fully client-side transaction signing
+- Non-custodial key management
 - AES-256 encrypted key storage with passphrase protection
 - Cold storage–friendly wallet architecture
 - Built entirely in **Rust**
@@ -48,15 +46,6 @@ The application runs as a fully native desktop app with GPU-accelerated renderin
 Download and install Dannesk from:
 
 👉 **https://dannesk.com**
-
----
-
-## Quick Start
-
-1. Launch Dannesk.
-2. Create or import a wallet (Bitcoin or XRPL).
-3. Manage balances or trade supported assets on the XRPL DEX.
-4. All operations and signing occur locally on your device.
 
 ---
 
