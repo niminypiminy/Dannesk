@@ -1,4 +1,4 @@
-# Dannesk
+# Dannesk v0.5.0
 
 ![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)
 ![Made with Rust](https://img.shields.io/badge/Made%20with-Rust-orange)
