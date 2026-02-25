@@ -50,7 +50,7 @@ Dannesk leverages the modern Rust ecosystem to deliver a memory-safe, non-custod
 
 ### 3. Hardened Security Layer
 
-- **Encrypted at Rest**  
+- **Encrypted Locally**  
   Wallet data encrypted using **AES-256-GCM**  
   Key derivation: **Argon2id** with OWASP recommended parameters (64MB RAM, 3 iterations, 4 lanes)
 
