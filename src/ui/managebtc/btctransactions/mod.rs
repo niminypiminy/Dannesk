@@ -1,9 +1,8 @@
 // src/ui/managebtc/transactions.rs
-use dioxus::prelude::*;
-use crate::context::{BtcContext}; // Added GlobalContext
+use dioxus_native::prelude::*;
+use crate::context::BtcContext;
 use crate::channel::{BTCActiveView, BitcoinTransactionStatus};
 use crate::utils::styles;
-use crate::utils::btcsvg::BtcIcon;
 use chrono::{DateTime, Utc, TimeZone};
 
 fn parse_timestamp(ts: &str) -> DateTime<Utc> {
@@ -32,9 +31,8 @@ pub fn view() -> Element {
     sorted_txs.sort_by_key(|tx| std::cmp::Reverse(parse_timestamp(&tx.timestamp)));
 
     let display_txs = sorted_txs.into_iter().take(100).collect::<Vec<_>>();
-    let is_empty = display_txs.is_empty();
 
-    let on_back_click = move |_| {
+    let on_back_click = move |_: MouseEvent| {
         btc_ctx.btc_modal.with_mut(|state| {
             state.view_type = BTCActiveView::BTC;
         });
@@ -46,8 +44,10 @@ pub fn view() -> Element {
                 display: flex;
                 flex-direction: column;
                 width: 100%;
-                padding-top: 5rem;
+                align-items: center; 
+                padding-top: 4rem;
                 color: var(--text);
+                font-family: 'JetBrains Mono', monospace;
             }
             .back-button-container {
                 position: absolute;
@@ -56,75 +56,76 @@ pub fn view() -> Element {
                 cursor: pointer;
                 z-index: 10;
             }
-            .empty-state {
+            .section-label {
+                width: 100%;
+                max-width: 1000px;
+                font-size: 0.65rem;
+                color: var(--text-secondary);
+                letter-spacing: 2px;
+                border-left: 2px solid var(--accent);
+                padding-left: 8px;
+                margin-bottom: 1rem;
+            }
+            .tx-table {
                 display: flex;
                 flex-direction: column;
-                align-items: center;
-                justify-content: center;
-                height: 100%; 
-                color: var(--text-secondary);
+                width: 1000px; 
+                min-width: 1000px; 
+                border: 1px solid var(--border);
+                background: var(--bg-primary);
             }
             .table-header {
                 display: flex;
                 flex-direction: row;
-                background-color: var(--bg-secondary);
-                padding: 10px 5px;
+                background-color: var(--bg-grid);
                 border-bottom: 1px solid var(--border);
-                font-weight: bold;
-                color: var(--text);
-                font-size: 0.85rem;
-                font-family: monospace;
+                font-weight: 600;
+                color: var(--text-secondary);
+                font-size: 0.6rem;
             }
             .table-body {
                 display: flex;
                 flex-direction: column;
-                overflow-y: auto;
-                flex: 1;
-                width: 100%;
             }
             .table-row {
                 display: flex;
                 flex-direction: row;
-                padding: 10px 5px;
                 align-items: center;
                 border-bottom: 1px solid var(--bg-faint);
-                font-size: 0.8rem;
-                font-family: monospace;
-                color: var(--text);
             }
-            .col { padding: 0 4px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-            
-            .c-tx-id { width: 15%; }
-            .c-asset { width: 8%; display: flex; align-items: center; gap: 4px; }
-            .c-status { width: 10%; }
-            .c-amount { width: 12%; }
-            .c-fee { width: 8%; }
-            .c-senders { width: 16%; }
-            .c-receivers { width: 16%; }
-            .c-date { width: 15%; text-align: right; }
+            .col { 
+                flex: 1; 
+                padding: 10px 8px;
+                overflow: hidden; 
+                white-space: nowrap; 
+                text-overflow: ellipsis;
+                border-right: 1px solid var(--bg-faint);
+                font-size: 0.7rem;
+            }
+            .col:last-child { border-right: none; }
+            .c-currency { color: var(--accent); font-weight: bold; }
+            .c-date { color: var(--text-secondary); }
         "#} }
 
         div { class: "tx-container",
             div { 
                 class: "back-button-container",
                 onclick: on_back_click,
-                styles::previous_icon_button { text_color: "#fff".to_string() }
+                styles::previous_icon_button { text_color: "var(--text)".to_string() }
             }
 
-            if is_empty {
-                div { class: "empty-state",
-                    h2 { "No Bitcoin transactions yet" }
-                }
-            } else {
+            div { class: "section-label", "NETWORK_LOG // BITCOIN_TRANSACTIONS" }
+
+            div { class: "tx-table",
                 div { class: "table-header",
-                    div { class: "col c-tx-id", "Tx ID" }
-                    div { class: "col c-asset", "Asset" }
-                    div { class: "col c-status", "Status" }
-                    div { class: "col c-amount", "Amount" }
-                    div { class: "col c-fee", "Fee" }
-                    div { class: "col c-senders", "Sender" }
-                    div { class: "col c-receivers", "Receiver" }
-                    div { class: "col c-date", "Date" }
+                    div { class: "col", "TX_ID" }
+                    div { class: "col", "ASSET" }
+                    div { class: "col", "STATUS" }
+                    div { class: "col", "AMOUNT" }
+                    div { class: "col", "FEE" }
+                    div { class: "col", "SENDER" }
+                    div { class: "col", "RECV" }
+                    div { class: "col c-date", "DATE" }
                 }
 
                 div { class: "table-body",
@@ -158,49 +159,39 @@ fn TransactionRow(
     senders: Vec<String>,
     timestamp: String
 ) -> Element {
-    // Zebra striping using theme variables
     let bg_color = if index % 2 == 0 { "transparent" } else { "var(--bg-faint)" };
     
-    let short_id = if tx_id.len() > 15 { format!("{}...", &tx_id[..15]) } else { tx_id.clone() };
+    let (status_text, status_color) = match status {
+        BitcoinTransactionStatus::Success => ("OK", "var(--status-ok)"),
+        BitcoinTransactionStatus::Failed => ("FAIL", "var(--status-warn)"),
+        BitcoinTransactionStatus::Pending => ("WAIT", "var(--accent)"),
+        BitcoinTransactionStatus::Cancelled => ("VOID", "var(--text-secondary)"),
+    };
+
+    let short_id = if tx_id.len() > 8 { format!("{}..", &tx_id[..8]) } else { tx_id.clone() };
     
     let format_addresses = |addrs: &[String]| {
         if addrs.is_empty() { return "—".to_string(); }
         let joined = addrs.join(", ");
-        if joined.len() > 18 { format!("{}...", &joined[..15]) } else { joined }
+        if joined.len() > 10 { format!("{}..", &joined[..8]) } else { joined }
     };
-    
+
     let full_senders = senders.join(", ");
     let full_receivers = receivers.join(", ");
-    let display_senders = format_addresses(&senders);
-    let display_receivers = format_addresses(&receivers);
-
-    // Semantic status colors adjusted for light mode contrast
-    let (status_text, status_color) = match status {
-        BitcoinTransactionStatus::Success => ("Success", "rgb(0, 180, 0)"),
-        BitcoinTransactionStatus::Failed => ("Failed", "rgb(220, 40, 40)"),
-        BitcoinTransactionStatus::Pending => ("Pending", "rgb(220, 160, 0)"),
-        BitcoinTransactionStatus::Cancelled => ("Cancelled", "var(--text-secondary)"),
-    };
-
-    let formatted_date = format_timestamp(&timestamp);
 
     rsx! {
         div { 
             class: "table-row",
             style: "background-color: {bg_color};",
 
-            div { class: "col c-tx-id", title: "{tx_id}", "{short_id}" }
-            
-            div { class: "col c-asset",
-                BtcIcon {}
-            }
-
-            div { class: "col c-status", style: "color: {status_color}", "{status_text}" }
-            div { class: "col c-amount", "{amount}" }
-            div { class: "col c-fee", "{fee}" }
-            div { class: "col c-senders", title: "{full_senders}", "{display_senders}" }
-            div { class: "col c-receivers", title: "{full_receivers}", "{display_receivers}" }
-            div { class: "col c-date", title: "{timestamp}", "{formatted_date}" }
+            div { class: "col", title: "{tx_id}", "{short_id}" }
+            div { class: "col c-currency", "BTC" }
+            div { class: "col", style: "color: {status_color}", "{status_text}" }
+            div { class: "col", "{amount}" }
+            div { class: "col", "{fee}" }
+            div { class: "col", title: "{full_senders}", "{format_addresses(&senders)}" }
+            div { class: "col", title: "{full_receivers}", "{format_addresses(&receivers)}" }
+            div { class: "col c-date", "{format_timestamp(&timestamp)}" }
         }
     }
 }

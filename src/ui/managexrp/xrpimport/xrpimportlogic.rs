@@ -44,7 +44,7 @@ impl XRPImportLogic {
         let seed_bytes = mnemonic.to_seed(b_thread.as_str());
         
         // XRP specific derivation (Ed25519)
-        let mut entropy: [u8; 16] = seed_bytes[0..16].try_into().expect("BIP39 error");
+        let mut entropy: [u8; 16] = seed_bytes[0..16].try_into().expect("BIP39 Invalid Seed");
         let mut base58_seed = encode_seed(&entropy, &Ed25519);
         
         entropy.zeroize(); 

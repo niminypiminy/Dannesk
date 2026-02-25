@@ -1,5 +1,5 @@
 // src/ui/managexrp/xrpcreate/mod.rs
-use dioxus::prelude::*;
+use dioxus_native::prelude::*;
 use crate::context::XrpContext;
 use crate::channel::{ActiveView}; 
 use crate::utils::styles;

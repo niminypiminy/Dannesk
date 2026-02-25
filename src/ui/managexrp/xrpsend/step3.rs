@@ -1,7 +1,9 @@
-// src/ui/managexrp/xrpsend/step3.rs
+//src/ui/managexrp/xrpsend/step3.rs
+// dependent on utils/send_review_layout.rs
 
-use dioxus::prelude::*;
+use dioxus_native::prelude::*;
 use crate::context::{XrpContext, GlobalContext};
+use crate::utils::send_review_layout::render_send_review;
 
 #[component]
 pub fn view() -> Element {
@@ -15,8 +17,8 @@ pub fn view() -> Element {
     let sign_state = sign_transaction.read();
     let send_data = sign_state.send_transaction.as_ref();
 
-    let recipient = send_data.and_then(|s| s.recipient.clone()).unwrap_or_else(|| "N/A".into());
-    let amount = send_data.and_then(|s| s.amount.clone()).unwrap_or_else(|| "0".into());
+    let recipient = send_data.and_then(|s| s.recipient.clone()).unwrap_or_else(|| "NULL".into());
+    let amount = send_data.and_then(|s| s.amount.clone()).unwrap_or_else(|| "0.00".into());
     let asset = send_data.map(|s| s.asset.clone()).unwrap_or_else(|| "XRP".into());
 
     let usd_amount = if asset == "XRP" {
@@ -38,62 +40,23 @@ pub fn view() -> Element {
         });
     };
 
-
-    rsx! {
-        div {
-            style: "display: flex; flex-direction: column; width: 100%; align-items: center;",
-
-
-            // Grid container - 33rem max width to match Step 1 input width
-            div {
-                style: "width: 100%; max-width: 33rem; background-color: #1a1a1a; border: 1px solid #333; border-radius: 0.25rem; display: flex; flex-direction: column;",
-                
-                ReviewRow { label: "Recipient".to_string(), value: recipient, is_alt: false }
-                ReviewRow { label: format!("Amount ({asset})"), value: format!("{amount} {asset}"), is_alt: true }
-                
-                if asset != "RLUSD" {
-                    ReviewRow { label: "Amount (USD)".to_string(), value: format!("${usd_amount}"), is_alt: false }
-                }
-                
-                ReviewRow { 
-                    label: "Network".to_string(), 
-                    value: "XRP Ledger".to_string(), 
-                    is_alt: asset != "RLUSD"
-                }
-            }
-
-            // Warning Text
-            div { 
-                style: "width: 100%; max-width: 33rem; padding: 1.5rem 0;",
-                p { 
-                    style: "font-size: 0.875rem; color: #777; text-align: center; font-family: monospace; line-height: 1.4; margin: 0;",
-                    "Verify the recipient address carefully. Ledger transactions cannot be undone."
-                }
-            }
-
-            // Button - EXACT COPY of Step 1 and Step 4
-            button {
-                style: "width: 8.75rem; height: 2.25rem; background-color: #333; color: white; border: none; border-radius: 1.375rem; font-size: 1rem; display: flex; cursor: pointer; justify-content: center; align-items: center; margin-top: 1rem;",
-                onclick: on_confirm_click,
-                "Continue"
-            }
-        }
-    }
-}
-
-#[component]
-fn ReviewRow(label: String, value: String, is_alt: bool) -> Element {
-    let bg = if is_alt { "#222" } else { "#1a1a1a" };
+    // Dynamically build rows (handling the RLUSD condition)
+    let mut summary_rows = vec![
+        ("RECIPIENT_ADDR".to_string(), recipient),
+        ("SEND_QUANTITY".to_string(), format!("{} {}", amount, asset)),
+    ];
     
-    rsx! {
-        div {
-            // Using padding-top/bottom to define height exactly for the native renderer
-            style: "display: flex; flex-direction: row; justify-content: space-between; align-items: center; padding: 1.25rem 1rem; background-color: {bg}; border-bottom: 1px solid #2a2a2a;",
-            span { style: "font-size: 1rem; color: #999; font-family: monospace;", "{label}" }
-            span { 
-                style: "font-size: 1rem; color: white; font-weight: bold; text-align: right; flex: 1; margin-left: 2rem; word-break: break-all; font-family: monospace;", 
-                "{value}" 
-            }
-        }
+    if asset != "RLUSD" {
+        summary_rows.push(("USD_VALUATION".to_string(), format!("${}", usd_amount)));
     }
+    
+    summary_rows.push(("NETWORK_ID".to_string(), "XRP_LEDGER_MAINNET".to_string()));
+
+    render_send_review(
+        "TRANSACTION_INITIALIZATION // STEP_03 // REVIEW_TRANSACTION".to_string(),
+        summary_rows,
+        "CAUTION: Verify the recipient address carefully. Ledger transactions are immutable and cannot be reversed once broadcast.".to_string(),
+        "XRPL_MAINNET".to_string(),
+        on_confirm_click,
+    )
 }

@@ -1,12 +1,11 @@
 // src/ui/managexrp/mod.rs
-use dioxus::prelude::*;
+use dioxus_native::prelude::*;
 use crate::context::XrpContext;
 use crate::channel::{XRPImport, ActiveView, Trade};
 use bip39::{Mnemonic, Language};
-use rand::{thread_rng, RngCore};
+use rand::{rng, Rng};
 use zeroize::Zeroizing;
-use crate::utils::tradesvg::TradeIcon;
-use crate::utils::transactionssvg::TransactionsIcon;
+use crate::utils::styles::{terminal_action, nav_action}; 
 
 pub mod xrpimport;
 pub mod xrpcreate; 
@@ -18,10 +17,8 @@ pub mod receive;
 pub mod transactions;
 pub mod trade;
 
-
 pub fn render_manage_xrp() -> Element {
     let xrp = use_context::<XrpContext>();
-    
     let mut xrp_modal = xrp.xrp_modal; 
     let mut wallet_process = xrp.wallet_process; 
     let mut trade_tx = xrp.trade; 
@@ -40,12 +37,27 @@ pub fn render_manage_xrp() -> Element {
         _ => {} 
     }
 
-    let on_trade_init = move |_| {
-        let current_view = xrp_modal.read().view_type.clone();
-        xrp_modal.with_mut(|state| {
-            state.last_view = Some(current_view);
-            state.view_type = ActiveView::Trade;
-        });
+    // Asset Navigation uses nav_action for the green active state
+    let nav_xrp = nav_action("XRP", matches!(view_type, ActiveView::XRP), move |_| xrp_modal.with_mut(|s| s.view_type = ActiveView::XRP));
+    let nav_usd = nav_action("USD", matches!(view_type, ActiveView::RLUSD), move |_| xrp_modal.with_mut(|s| s.view_type = ActiveView::RLUSD));
+    let nav_eur = nav_action("EUR", matches!(view_type, ActiveView::EURO), move |_| xrp_modal.with_mut(|s| s.view_type = ActiveView::EURO));
+
+    let create_btn = terminal_action("CREATE_XRP_WALLET", true, move |_| {
+        let mut entropy = [0u8; 32];
+        rng().fill_bytes(&mut entropy);
+        let mnemonic = Mnemonic::from_entropy_in(Language::English, &entropy).unwrap();
+        let seed = Zeroizing::new(mnemonic.to_string());
+        wallet_process.with_mut(|state| state.create_wallet = Some(XRPImport { step: 1, seed: Some(seed), error: None }));
+        xrp_modal.with_mut(|s| s.view_type = ActiveView::Create);
+    });
+
+    let import_btn = terminal_action("IMPORT_XRP_WALLET", true, move |_| {
+        wallet_process.with_mut(|state| state.import_wallet = Some(XRPImport { step: 1, seed: None, error: None }));
+        xrp_modal.with_mut(|s| s.view_type = ActiveView::Import);
+    });
+
+    let trade_btn = terminal_action("TRADE", matches!(view_type, ActiveView::Trade), move |_| {
+        xrp_modal.with_mut(|state| { state.last_view = Some(ActiveView::XRP); state.view_type = ActiveView::Trade; });
         trade_tx.with_mut(|state| {
             state.send_trade = Some(Trade {
                 step: 1, base_asset: None, quote_asset: None, amount: None,
@@ -53,166 +65,99 @@ pub fn render_manage_xrp() -> Element {
                 asset: "XRP".to_string()
             });
         });
-    };
+    });
 
-    let on_tx_click = move |_: MouseEvent| {
-        let current_view = xrp_modal.read().view_type.clone();
-        xrp_modal.with_mut(|state| {
-            state.last_view = Some(current_view);
-            state.view_type = ActiveView::Transactions;
-        });
-    };
+    let history_btn = terminal_action("HISTORY", matches!(view_type, ActiveView::Transactions), move |_| {
+        xrp_modal.with_mut(|state| { state.last_view = Some(ActiveView::XRP); state.view_type = ActiveView::Transactions; });
+    });
 
-    let on_create_click = move |_| {
-        let mut entropy = [0u8; 32];
-        thread_rng().fill_bytes(&mut entropy);
-        let mnemonic = Mnemonic::from_entropy_in(Language::English, &entropy).unwrap();
-        let seed = Zeroizing::new(mnemonic.to_string());
-        
-        wallet_process.with_mut(|state| {
-            state.create_wallet = Some(XRPImport { step: 1, seed: Some(seed), error: None });
-        });
-        xrp_modal.with_mut(|s| s.view_type = ActiveView::Create);
-    };
-
-    let on_import_click = move |_| {
-        wallet_process.with_mut(|state| {
-            state.import_wallet = Some(XRPImport { step: 1, seed: None, error: None });
-        });
-        xrp_modal.with_mut(|s| s.view_type = ActiveView::Import);
-    };
-
-rsx! {
+    rsx! {
         style { {r#"
-            .wallet-main-container { 
+            .terminal-viewport { 
                 display: flex; 
                 flex-direction: row; 
+                width: 100%; 
+                flex: 1;
+                justify-content: space-between; 
+                padding: 0 2rem; 
+                box-sizing: border-box;
+            }
+            .setup-container {
+                width: 100%;
+                max-width: 600px; 
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+            }
+            .setup-header {
+                width: 100%;
+                border-bottom: 1px solid var(--border);
+                padding-bottom: 0.5rem;
+                margin-bottom: 2rem;
+                display: flex;
+                justify-content: center; 
+                align-items: flex-end;
+            }
+            .setup-label { 
+                font-size: 0.7rem; 
+                color: var(--text-secondary); 
+                letter-spacing: 0.25rem; 
+                font-weight: 600;
+                padding-left: 0.25rem; 
+            }
+            .term-sidebar { 
+                display: flex; 
+                flex-direction: column; 
+                gap: 1rem; 
+                justify-content: center; 
+                min-width: 140px; 
+            }
+            .term-main { 
+                flex: 1; 
+                display: flex; 
+                flex-direction: column; 
                 align-items: center; 
                 justify-content: center; 
-                width: 100%; 
-                position: relative; 
             }
-            .side-dock-container { 
-                position: absolute; 
-                left: 2rem; 
-                display: flex; 
-                flex-direction: column; 
-                gap: 0.5rem; 
-                padding: 1.5rem 0.5rem; 
-                background-color: rgba(30, 30, 30, 0.8); 
-                border-radius: 2rem; 
-                border: 1px solid rgba(255, 255, 255, 0.1); 
-                align-items: center; 
-            }
-            .right-dock-container { 
-                position: absolute; 
-                right: 2rem; 
-                display: flex; 
-                flex-direction: column; 
-                gap: 0.5rem; 
-                padding: 1rem 0.5rem; 
-                background-color: rgba(30, 30, 30, 0.8); 
-                border-radius: 2rem; 
-                border: 1px solid rgba(255, 255, 255, 0.1); 
-                align-items: center; 
-            }
-            .manage-grid { display: grid; grid-template-columns: 1fr; gap: 1rem; max-width: 22rem; }
-            .manage-btn { padding: 1rem 3rem; font-size: 1rem; border-radius: 1rem; border: 1px solid #444; background: var(--btn); color: #fff; cursor: pointer; }
         "#} }
 
-        div { class: "wallet-main-container",
-            if has_wallet {
-                div { class: "side-dock-container",
-                    DockButton { 
-                        label: "XRP".to_string(), 
-                        is_active: matches!(view_type, ActiveView::XRP), 
-                        onclick: move |_| xrp_modal.with_mut(|s| s.view_type = ActiveView::XRP) 
+        div { class: "terminal-viewport",
+            div { class: "term-sidebar",
+                if has_wallet {
+                    {nav_xrp}
+                    {nav_usd}
+                    {nav_eur}
+                }
+            }
+
+            div { class: "term-main",
+                if !has_wallet {
+                    div { class: "setup-container",
+                        div { class: "setup-header",
+                            div { class: "setup-label", "XRP_NETWORK_INITIALIZATION" }
+                        }
+                        div { 
+                            style: "display: flex; flex-direction: column; gap: 1rem; width: 100%; align-items: center;",
+                            {create_btn}
+                            {import_btn}
+                        }
                     }
-                    DockButton { 
-                        label: "USD".to_string(), 
-                        is_active: matches!(view_type, ActiveView::RLUSD), 
-                        onclick: move |_| xrp_modal.with_mut(|s| s.view_type = ActiveView::RLUSD) 
-                    }
-                    DockButton { 
-                        label: "EUR".to_string(), 
-                        is_active: matches!(view_type, ActiveView::EURO), 
-                        onclick: move |_| xrp_modal.with_mut(|s| s.view_type = ActiveView::EURO) 
+                } else {
+                    match view_type {
+                        ActiveView::RLUSD => rsx! { managerlusd::render_rlusd_balance {} },
+                        ActiveView::EURO => rsx! { manageeuro::render_manage_euro {} },
+                        _ => rsx! { xrpbalance::render_xrp_balance {} },
                     }
                 }
             }
 
-            if !has_wallet {
-                div { class: "manage-grid",
-                    button { class: "manage-btn", onclick: on_create_click, "Create Wallet" }
-                    button { class: "manage-btn", onclick: on_import_click, "Import Wallet" }
-                }
-            } else {
-                match view_type {
-                    ActiveView::RLUSD => rsx! { managerlusd::render_rlusd_balance {} },
-                    ActiveView::EURO => rsx! { manageeuro::render_manage_euro {} },
-                    _ => rsx! { xrpbalance::render_xrp_balance {} },
+            div { class: "term-sidebar",
+                style: "align-items: flex-end;", 
+                if has_wallet {
+                    {trade_btn}
+                    {history_btn}
                 }
             }
-
-            if has_wallet {
-                div { class: "right-dock-container",
-                    render_trade_toggle { 
-                        is_active: matches!(view_type, ActiveView::Trade), 
-                        onclick: on_trade_init 
-                    }
-                    render_transactions_toggle { 
-                        is_active: matches!(view_type, ActiveView::Transactions),
-                        onclick: on_tx_click 
-                    }
-                }
-            }
-        }
-    }
-}
-
-fn dock_base_style(bg: &str, color: &str) -> String {
-    format!(
-        "padding: 0.6rem; border-radius: 1.2rem; border: none; cursor: pointer; \
-         display: flex; align-items: center; justify-content: center; \
-         background-color: {}; color: {}; transition: all 0.2s ease;",
-        bg, color
-    )
-}
-
-#[component]
-fn render_trade_toggle(is_active: bool, onclick: EventHandler<MouseEvent>) -> Element {
-    let (bg, icon) = if is_active { ("white", "black") } else { ("transparent", "#aaa") };
-    rsx! {
-        button {
-            style: dock_base_style(bg, icon),
-            onclick: move |e| onclick.call(e),
-            TradeIcon {}
-        }
-    }
-}
-
-#[component]
-fn render_transactions_toggle(is_active: bool, onclick: EventHandler<MouseEvent>) -> Element {
-    let (bg, icon) = if is_active { ("white", "black") } else { ("transparent", "#aaa") };
-    rsx! {
-        button {
-            style: dock_base_style(bg, icon),
-            onclick: move |e| onclick.call(e),
-            TransactionsIcon {}
-        }
-    }
-}
-
-#[component]
-fn DockButton(label: String, is_active: bool, onclick: EventHandler<MouseEvent>) -> Element {
-    let (bg, text) = if is_active { ("white", "black") } else { ("transparent", "#aaa") };
-    let font_weight = if is_active { "bold" } else { "normal" };
-    rsx! {
-        button {
-            // Horizontal padding 1rem for the 3-letter words
-            style: "{dock_base_style(bg, text)} padding: 0.6rem 1rem; font-weight: {font_weight};",
-            onclick: onclick,
-            "{label}"
         }
     }
 }

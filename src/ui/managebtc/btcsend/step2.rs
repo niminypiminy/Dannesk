@@ -1,62 +1,42 @@
-// src/ui/managebtc/btcsend/step2.rs
+//src/ui/managebtc/btcsend/step2.rs
+//dependent upon utils/send_amount_layout
 
-use dioxus::prelude::*;
+use dioxus_native::prelude::*;
 use crate::context::{BtcContext, GlobalContext};
-
-/// Helper to truncate a float to a string with max N decimals without rounding.
-fn truncate_to_string(val: f64, decimals: usize) -> String {
-    let s = format!("{:.1$}", val, decimals);
-    if let Some(dot_idx) = s.find('.') {
-        let integer_part = &s[..dot_idx];
-        let fractional_part = &s[dot_idx + 1..];
-        let trimmed_fraction = fractional_part.trim_end_matches('0');
-        
-        if trimmed_fraction.is_empty() {
-            format!("{}.00", integer_part)
-        } else if trimmed_fraction.len() == 1 {
-            format!("{}.{}0", integer_part, trimmed_fraction)
-        } else {
-            format!("{}.{}", integer_part, trimmed_fraction)
-        }
-    } else {
-        format!("{}.00", s)
-    }
-}
+use crate::utils::{format_token_amount, format_usd};
+use crate::utils::send_amount_layout::SendAmountForm;
 
 #[component]
 pub fn view() -> Element {
     let btc_ctx = use_context::<BtcContext>();
     let global = use_context::<GlobalContext>();
     
-    let mut btc_sign_transaction = btc_ctx.btc_sign_transaction;
+    let mut sign_tx = btc_ctx.btc_sign_transaction;
     let rates = global.rates.read();
     let exchange_rate = rates.get("BTC/USD").copied().unwrap_or(0.0) as f64;
 
-    // Simplified balance reading for BTC only
-    let (btc_balance, _address, _key_deleted) = btc_ctx.bitcoin_wallet.read().clone();
+    let btc_balance = btc_ctx.bitcoin_wallet.read().0;
 
     let mut btc_in = use_signal(|| {
-        btc_sign_transaction.read()
-            .send_transaction.as_ref()
+        sign_tx.read().send_transaction.as_ref()
             .and_then(|s| s.amount.clone())
             .unwrap_or_default()
     });
     
     let mut usd_in = use_signal(|| {
-        let saved_btc = btc_sign_transaction.read()
-            .send_transaction.as_ref()
+        let saved = sign_tx.read().send_transaction.as_ref()
             .and_then(|s| s.amount.clone())
             .unwrap_or_default();
         
-        if let Ok(val) = saved_btc.parse::<f64>() {
-            truncate_to_string(val * exchange_rate, 2) // USD usually 2 decimals
+        if let Ok(val) = saved.parse::<f64>() {
+            format_usd(val * exchange_rate)
         } else {
             String::new()
         }
     });
 
     let mut clear_error = move || {
-        btc_sign_transaction.with_mut(|state| {
+        sign_tx.with_mut(|state| {
             if let Some(ref mut send) = state.send_transaction {
                 send.error = None;
             }
@@ -64,30 +44,27 @@ pub fn view() -> Element {
     };
 
     let on_btc_input = move |evt: FormEvent| {
-        let val = evt.value();
+        let val = evt.value().replace(['\n', '\r'], "");
         btc_in.set(val.clone());
         clear_error();
-
         if let Ok(amount) = val.parse::<f64>() {
-            let usd = amount * exchange_rate;
-            usd_in.set(truncate_to_string(usd, 2));
+            usd_in.set(format_usd(amount * exchange_rate));
         } else {
-            usd_in.set("".to_string());
+            usd_in.set(String::new());
         }
     };
 
     let on_usd_input = move |evt: FormEvent| {
-        let val = evt.value();
+        let val = evt.value().replace(['\n', '\r'], "");
         usd_in.set(val.clone());
         clear_error();
-
-        if let Ok(amount) = val.parse::<f64>() {
+        if let Ok(fiat) = val.parse::<f64>() {
             if exchange_rate > 0.0 {
-                let btc = amount / exchange_rate;
-                btc_in.set(truncate_to_string(btc, 8)); // BTC supports up to 8 decimals
+                // Bitcoin uses 8 decimals
+                btc_in.set(format_token_amount(fiat / exchange_rate, 8));
             }
         } else {
-            btc_in.set("".to_string());
+            btc_in.set(String::new());
         }
     };
 
@@ -95,9 +72,9 @@ pub fn view() -> Element {
         let amount_str = btc_in().trim().to_string();
         
         if amount_str.is_empty() {
-            btc_sign_transaction.with_mut(|state| {
-                if let Some(ref mut send) = state.send_transaction {
-                    send.error = Some("Amount cannot be empty.".to_string());
+            sign_tx.with_mut(|s| {
+                if let Some(ref mut tx) = s.send_transaction {
+                    tx.error = Some("ERR: AMOUNT_REQUIRED".to_string());
                 }
             });
             return;
@@ -105,112 +82,53 @@ pub fn view() -> Element {
 
         if let Ok(amount) = amount_str.parse::<f64>() {
             if amount <= 0.0 {
-                 btc_sign_transaction.with_mut(|state| {
-                    if let Some(ref mut send) = state.send_transaction {
-                        send.error = Some("Amount must be greater than zero.".to_string());
+                 sign_tx.with_mut(|s| {
+                    if let Some(ref mut tx) = s.send_transaction {
+                        tx.error = Some("ERR: MIN_VALUE_REQUIRED".to_string());
                     }
                 });
             } else if amount > btc_balance {
-                 btc_sign_transaction.with_mut(|state| {
-                    let err = format!("Insufficient funds: {} BTC available.", truncate_to_string(btc_balance, 8));
-                    if let Some(ref mut send) = state.send_transaction {
-                        send.error = Some(err);
+                 sign_tx.with_mut(|s| {
+                    let err = format!("ERR: INSUFFICIENT_FUNDS // MAX: {} BTC", format_token_amount(btc_balance, 8));
+                    if let Some(ref mut tx) = s.send_transaction {
+                        tx.error = Some(err);
                     }
                 });
             } else {
-                btc_sign_transaction.with_mut(|state| {
-                    if let Some(ref mut send) = state.send_transaction {
-                        send.amount = Some(truncate_to_string(amount, 8));
-                        send.step = 3; 
-                        send.error = None;
+                sign_tx.with_mut(|s| {
+                    if let Some(ref mut tx) = s.send_transaction {
+                        tx.amount = Some(format_token_amount(amount, 8));
+                        tx.step = 3; 
+                        tx.error = None;
                     }
                 });
             }
         } else {
-            btc_sign_transaction.with_mut(|state| {
-                if let Some(ref mut send) = state.send_transaction {
-                    send.error = Some("Invalid amount format.".to_string());
+            sign_tx.with_mut(|s| {
+                if let Some(ref mut tx) = s.send_transaction {
+                    tx.error = Some("ERR: INVALID_NUMBER_FORMAT".to_string());
                 }
             });
         }
     };
 
-    let current_error = btc_sign_transaction.read()
-        .send_transaction.as_ref()
+    let current_error = sign_tx.read().send_transaction.as_ref()
         .and_then(|s| s.error.clone());
 
-    let get_border = |val: String| -> &'static str {
-        let trimmed = val.trim();
-        if !trimmed.is_empty() && trimmed.parse::<f64>().is_ok() {
-             "1px solid #10B981" 
-        } else if !trimmed.is_empty() {
-             "1px solid #ef4444"
-        } else {
-             "1px solid #444"
-        }
-    };
-
-   rsx! {
-    div {
-        style: "display: flex; 
-            flex-direction: column; 
-            width: 100%; 
-            align-items: center;",
-
-        div { style: "font-size: 1.5rem; margin: 0; margin-bottom: 1rem;", "Enter Amount" }
-        div { 
-            style: "font-size: 1rem; color: #888; margin-bottom: 1.5rem;", 
-            "Enter the amount in BTC or USD." 
-        }
-
-        // === Primary Input (BTC) ===
-        div { style: "width: 100%; max-width: 25rem;",
-            label { style: "font-size: 0.875rem; margin-bottom: 0.25rem; display: block;", "Amount (BTC)" }
-            input {
-                style: "width: 100%; height: 2rem; padding: 0.3125rem; background-color: transparent;  border: {get_border(btc_in())}; border-radius: 0.25rem; font-size: 1.25rem; display: block;",
-                value: "{btc_in()}",
-                oninput: on_btc_input
-            }
-        }
-
-        // === USD Input ===
-        div { style: "width: 100%; max-width: 25rem; margin-top: 1rem;",
-            label { style: "font-size: 0.875rem; margin-bottom: 0.25rem; display: block;", "Amount (USD)" }
-            input {
-                style: "width: 100%; height: 2rem; padding: 0.3125rem; background-color: transparent; border: {get_border(usd_in())}; border-radius: 0.25rem; font-size: 1.25rem; display: block;",
-                value: "{usd_in()}",
-                oninput: on_usd_input
-            }
-        }
-
-        // === Info Row (Flush left under inputs) ===
-        div {
-            style: "display: flex; flex-direction: column; width: 100%; max-width: 25rem; font-size: 0.875rem; color: #888; margin-top: 1rem;",
-            
-            div {
-                style: "display: flex; flex-direction: row; gap: 0.5rem; text-align: left;",
-                span { "Available Balance:" }
-                span { style: "font-weight: bold;", "{truncate_to_string(btc_balance, 8)} BTC" }
-            }
-
-            div {
-                style: "display: flex; flex-direction: row; gap: 0.5rem; text-align: left;",
-                span { "Exchange Rate:" }
-                span { style: "font-weight: bold;", "${exchange_rate}" }
-            }
-        }
-
-        if let Some(err) = current_error {
-            div { style: "color: #ff4d4d; font-size: 0.875rem; font-weight: bold; margin-top: 0.5rem;", "{err}" }
-        }
-
-        button {
-            style: "width: 8.75rem; height: 2.25rem; background-color: #333; color: white; border: none; 
-                border-radius: 1.375rem; font-size: 1rem; display: flex; cursor: pointer; 
-                justify-content: center; align-items: center; margin-top: 3rem;",
-            onclick: on_next_click,
-            "Continue"
+    // Inject the Bitcoin-specific data into the shared layout
+    rsx! {
+        SendAmountForm {
+            asset_label: "BTC".to_string(),
+            network_label: "BITCOIN_MAINNET".to_string(),
+            show_fiat: true,
+            amount_in: btc_in,
+            fiat_in: usd_in,
+            formatted_balance: format_token_amount(btc_balance, 8),
+            exchange_rate: exchange_rate,
+            current_error: current_error,
+            on_amount_input: on_btc_input,
+            on_fiat_input: on_usd_input,
+            on_next_click: on_next_click,
         }
     }
-}
 }

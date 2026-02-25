@@ -1,35 +1,42 @@
-// src/ui/dashboard.rs (Dioxus version - updated)
-
-use dioxus::prelude::*;
+use dioxus_native::prelude::*;
 use crate::channel::{CHANNEL, Tab};
-use crate::ui::{balance, managexrp, managebtc, ticker, progressbar::ProgressBar};
+use crate::ui::{balance, managebtc, managexrp, progressbar::ProgressBar, sidebar};
 use crate::context::GlobalContext;
 
 pub fn render_dashboard() -> Element {
     let global = use_context::<GlobalContext>();
     let current_tab = *global.selected_tab.read();
     let progress = global.progress.read().clone();
+    let is_dark = global.theme_user.read().0; // Assuming .0 is boolean is_dark
+
+    // Hardcoded Dock Background
+    let dock_bg = if is_dark { "#000000" } else { "#f8fafc" };
 
     rsx! {
         div {
-            style: "display: flex; flex-direction: column; height: 100%; width: 100%; overflow: hidden;",
+            class: "theme-root",
+            style: "display: flex; flex-direction: column; height: 100%; width: 100%; overflow: hidden; position: relative;",
 
-            match progress {
-                Some(_) => rsx! {
-                    ProgressBar {
-                        operation_name: "processing...".to_string()
-                    }
-                },
+            div {
+                style: "
+                    position: absolute;
+                    top: 0.5rem;
+                    right: 1rem;
+                    display: flex;
+                    flex-direction: row;
+                    gap: 0.5rem;
+                    z-index: 1000;
+                ",
+                sidebar::render_balance_toggle {}
+                sidebar::render_theme_toggle {}
+            }
+
+           match progress {
+                Some(_) => rsx! { ProgressBar { operation_name: "Processing...".to_string() } },
                 None => rsx! {
-                    // 1. TICKER (Moved to top)
                     div {
-                        style: "width: 100%; padding-top: 2rem; padding-bottom: 1rem;",
-                        ticker::render_ticker {}
-                    }
-
-                    // 2. MAIN CONTENT AREA
-                    div {
-                        style: "flex: 1; width: 100%; display: flex;",
+                        class: "theme-bg-primary",
+                        style: "flex: 1; width: 100%; display: flex; overflow-y: auto;",
                         match current_tab {
                             Tab::Balance => rsx! { balance::render_balance {} },
                             Tab::XRP => rsx! { managexrp::render_manage_xrp {} },
@@ -37,25 +44,33 @@ pub fn render_dashboard() -> Element {
                         }
                     }
 
-                    // 3. BOTTOM NAVIGATION (Dock)
-                   // 3. BOTTOM NAVIGATION (Dock)
-div {
-    style: "display: flex; justify-content: center; padding-bottom: 2rem; padding-top: 1rem; width: 100%;",
-    div {
-        style: "
-            display: flex;
-            gap: 0.4rem;           /* Slightly tighter gap */
-            padding: 0.5rem;       /* Uniform padding for better centering */
-            background-color: rgba(30, 30, 30, 0.8);
-            border-radius: 2rem;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            align-items: center;
-        ",
-        DockButton { label: "Balance".to_string(), is_active: current_tab == Tab::Balance, onclick: move |_| { let _ = CHANNEL.selected_tab_tx.send(Tab::Balance); } }
-        DockButton { label: "XRP".to_string(), is_active: current_tab == Tab::XRP, onclick: move |_| { let _ = CHANNEL.selected_tab_tx.send(Tab::XRP); } }
-        DockButton { label: "BTC".to_string(), is_active: current_tab == Tab::BTC, onclick: move |_| { let _ = CHANNEL.selected_tab_tx.send(Tab::BTC); } }
-    }
-}
+                    // INDUSTRIAL BOTTOM NAVIGATION
+                    div {
+                        style: "
+                            display: flex; 
+                            width: 100%; 
+                            height: 60px; 
+                            background-color: {dock_bg};
+                        ",
+                        DockButton { 
+                            label: "BALANCE".to_string(), 
+                            is_active: current_tab == Tab::Balance, 
+                            is_dark,
+                            onclick: move |_| { let _ = CHANNEL.selected_tab_tx.send(Tab::Balance); } 
+                        }
+                        DockButton { 
+                            label: "XRP".to_string(), 
+                            is_active: current_tab == Tab::XRP, 
+                            is_dark,
+                            onclick: move |_| { let _ = CHANNEL.selected_tab_tx.send(Tab::XRP); } 
+                        }
+                        DockButton { 
+                            label: "BTC".to_string(), 
+                            is_active: current_tab == Tab::BTC, 
+                            is_dark,
+                            onclick: move |_| { let _ = CHANNEL.selected_tab_tx.send(Tab::BTC); } 
+                        }
+                    }
                 },
             }
         }
@@ -63,26 +78,33 @@ div {
 }
 
 #[component]
-fn DockButton(label: String, is_active: bool, onclick: EventHandler<MouseEvent>) -> Element {
-    let bg_color = if is_active { "white" } else { "transparent" };
-    let text_color = if is_active { "black" } else { "#aaa" };
-    let font_weight = if is_active { "bold" } else { "normal" };
+fn DockButton(label: String, is_active: bool, is_dark: bool, onclick: EventHandler<MouseEvent>) -> Element {
+    // HARDCODED THEME LOGIC
+    let (text_color, bg_color) = if is_dark {
+        // Dark Theme Colors
+        if is_active { ("#ffffff", "#141414") } else { ("#737373", "transparent") }
+    } else {
+        // Light Theme Colors
+        if is_active { ("#0f172a", "#e2e8f0") } else { ("#64748b", "transparent") }
+    };
 
     rsx! {
         button {
             style: "
-                padding: 0.6rem 1.2rem; /* Increased vertical from 0.4 to 0.6 */
-                min-width: 85px;        /* Ensures visual symmetry regardless of word length */
-                border-radius: 1.5rem; 
-                border: none; 
-                cursor: pointer; 
-                font-size: 1rem; 
-                background-color: {bg_color}; 
-                color: {text_color}; 
-                font-weight: {font_weight};
+                flex: 1;
                 display: flex;
-                justify-content: center;
                 align-items: center;
+                justify-content: center;
+                background-color: {bg_color};
+                color: {text_color}; 
+                font-family: monospace;
+                font-size: 14px; 
+                letter-spacing: 0.1em;
+                cursor: pointer; 
+                border: none;
+                outline: none;
+                margin: 0;
+                padding: 0;
             ",
             onclick: onclick,
             "{label}"

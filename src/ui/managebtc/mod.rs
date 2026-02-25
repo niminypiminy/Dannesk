@@ -1,11 +1,11 @@
 // src/ui/managebtc/mod.rs
-use dioxus::prelude::*;
+use dioxus_native::prelude::*;
 use crate::context::BtcContext;
 use crate::channel::{BTCImport, BTCActiveView};
 use bip39::{Mnemonic, Language};
-use rand::{thread_rng, RngCore};
+use rand::{rng, Rng};
 use zeroize::Zeroizing; 
-use crate::utils::transactionssvg::TransactionsIcon;
+use crate::utils::styles::terminal_action; 
 
 pub mod btcimport;
 pub mod btcbalance; 
@@ -35,17 +35,10 @@ pub fn render_manage_btc() -> Element {
         BTCActiveView::BTC          => {} 
     }
 
-    // --- EVENT HANDLERS ---
-    let on_import_click = move |_| {
-        btc_wallet_process.with_mut(|state| {
-            state.import_wallet = Some(BTCImport { step: 1, seed: None, error: None });
-        });
-        btc_modal.with_mut(|s| s.view_type = BTCActiveView::Import);
-    };
-
-    let on_create_click = move |_| {
+    // --- TERMINAL ACTIONS ---
+    let create_btn = terminal_action("CREATE_BTC_WALLET", true, move |_| {
         let mut entropy = [0u8; 32];
-        thread_rng().fill_bytes(&mut entropy);
+        rng().fill_bytes(&mut entropy);
         let mnemonic = Mnemonic::from_entropy_in(Language::English, &entropy).unwrap();
         let seed = Zeroizing::new(mnemonic.to_string());
 
@@ -53,109 +46,100 @@ pub fn render_manage_btc() -> Element {
             state.create_wallet = Some(BTCImport { step: 1, seed: Some(seed), error: None });
         });
         btc_modal.with_mut(|s| s.view_type = BTCActiveView::Create);
-    };
+    });
+
+    let import_btn = terminal_action("IMPORT_BTC_WALLET", true, move |_| {
+        btc_wallet_process.with_mut(|state| {
+            state.import_wallet = Some(BTCImport { step: 1, seed: None, error: None });
+        });
+        btc_modal.with_mut(|s| s.view_type = BTCActiveView::Import);
+    });
+
+    let history_btn = terminal_action("HISTORY", matches!(view_type, BTCActiveView::Transactions), move |_| {
+        btc_modal.with_mut(|s| s.view_type = BTCActiveView::Transactions);
+    });
 
     // --- RENDER ---
-    rsx! {
+   rsx! {
         style { {r#"
-            .wallet-main-container { 
+            .terminal-viewport { 
                 display: flex; 
                 flex-direction: row; 
+                width: 100%; 
+                flex: 1;
+                justify-content: center; 
+                padding: 0 2rem; 
+                box-sizing: border-box;
+                position: relative;
+            }
+            .setup-container {
+                width: 100%;
+                max-width: 600px; 
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+            }
+            .setup-header {
+                width: 100%;
+                border-bottom: 1px solid var(--border);
+                padding-bottom: 0.5rem;
+                margin-bottom: 2rem;
+                display: flex;
+                justify-content: center; 
+                align-items: flex-end;
+            }
+            .setup-label { 
+                font-size: 0.7rem; 
+                color: var(--text-secondary); 
+                letter-spacing: 0.25rem; 
+                font-weight: 600;
+                padding-left: 0.25rem; 
+            }
+            .term-main { 
+                flex: 1; 
+                display: flex; 
+                flex-direction: column; 
                 align-items: center; 
                 justify-content: center; 
-                width: 100%; 
-                position: relative; 
+            }
+            .term-sidebar-right { 
+                position: absolute;
+                right: 2rem;
+                display: flex; 
+                flex-direction: column; 
+                gap: 1rem; 
+                justify-content: center; 
                 height: 100%;
+                align-items: flex-end;
             }
-            .side-dock-container { 
-                position: absolute; 
-                left: 2rem; 
-                display: flex; 
-                flex-direction: column; 
-                gap: 0.5rem; 
-                padding: 1rem 0.5rem; 
-                background-color: rgba(30, 30, 30, 0.8); 
-                border-radius: 2rem; 
-                border: 1px solid rgba(255, 255, 255, 0.1); 
-                align-items: center; 
-                visibility: hidden; 
-            }
-            .right-dock-container { 
-                position: absolute; 
-                right: 2rem; 
-                display: flex; 
-                flex-direction: column; 
-                gap: 0.5rem; 
-                padding: 1rem 0.5rem; 
-                background-color: rgba(30, 30, 30, 0.8); 
-                border-radius: 2rem; 
-                border: 1px solid rgba(255, 255, 255, 0.1); 
-                align-items: center; 
-            }
-            .manage-grid { display: grid; grid-template-columns: 1fr; gap: 1rem; max-width: 22rem; }
-            .manage-btn { padding: 1rem 3rem; font-size: 1rem; border-radius: 1rem; border: 1px solid #444; background: var(--btn); color: #fff; cursor: pointer; }
         "#} }
 
-        div { class: "wallet-main-container",
-            if has_wallet {
-                div { class: "side-dock-container" } 
-            }
-
-            if !has_wallet {
-                div { class: "manage-grid",
-                    button { class: "manage-btn", onclick: on_create_click, "Create Wallet" }
-                    button { class: "manage-btn", onclick: on_import_click, "Import Wallet" }
-                }
-            } else {
-                btcbalance::view {}
-            }
-
-            if has_wallet {
-                div { class: "right-dock-container",
-                    render_btc_transactions_toggle { 
-                        is_active: matches!(view_type, BTCActiveView::Transactions), 
-                        onclick: move |_| { 
-                            btc_modal.with_mut(|s| s.view_type = BTCActiveView::Transactions);
+        div { class: "terminal-viewport",
+            // No left sidebar for BTC
+            
+            div { class: "term-main",
+                if !has_wallet {
+                    // Applied matching setup container and label
+                    div { class: "setup-container",
+                        div { class: "setup-header",
+                            div { class: "setup-label", "BTC_NETWORK_INITIALIZATION" }
                         }
-                    } 
+                        div { 
+                            style: "display: flex; flex-direction: column; gap: 1rem; width: 100%; align-items: center;",
+                            {create_btn}
+                            {import_btn}
+                        }
+                    }
+                } else {
+                    btcbalance::view {}
                 }
             }
-        }
-    }
-}
 
-// --- HELPER COMPONENTS (Moved outside main function to avoid delimiter errors) ---
-
-fn dock_base_style(bg: &str, color: &str) -> String {
-    format!(
-        "padding: 0.6rem; border-radius: 1.2rem; border: none; cursor: pointer; \
-         display: flex; align-items: center; justify-content: center; \
-         background-color: {}; color: {}; transition: all 0.2s ease;",
-        bg, color
-    )
-}
-
-#[component]
-fn render_btc_transactions_toggle(is_active: bool, onclick: EventHandler<MouseEvent>) -> Element {
-    let (bg, icon) = if is_active { ("white", "black") } else { ("transparent", "#aaa") };
-    rsx! {
-        button {
-            style: dock_base_style(bg, icon),
-            onclick: move |e| onclick.call(e),
-            TransactionsIcon {}
-        }
-    }
-}
-
-#[component]
-fn DockButton(label: String, is_active: bool, onclick: EventHandler<MouseEvent>) -> Element {
-    let (bg, text) = if is_active { ("white", "black") } else { ("transparent", "#aaa") };
-    let font_weight = if is_active { "bold" } else { "normal" };
-    rsx! {
-        button {
-            style: "{dock_base_style(bg, text)} padding: 0.6rem 1rem; font-weight: {font_weight};",
-            onclick: onclick,
-            "{label}"
+            if has_wallet {
+                div { class: "term-sidebar-right",
+                    {history_btn}
+                }
+            }
         }
     }
 }

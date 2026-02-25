@@ -1,4 +1,5 @@
 // src/ui/managexrp/trade/tradelogic.rs
+//dependent upon utils/auth_layout.rs
 
 use tokio::sync::mpsc::Sender;
 use crate::channel::{CHANNEL, WSCommand, ProgressState, XRPModalState, SignTradeState, ActiveView};

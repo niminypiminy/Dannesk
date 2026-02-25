@@ -1,5 +1,5 @@
 // src/ui/managexrp/xrpcreate/mod.rs
-use dioxus::prelude::*;
+use dioxus_native::prelude::*;
 use crate::context::BtcContext;
 use crate::channel::{BTCActiveView}; 
 use crate::utils::styles;

@@ -1,17 +1,13 @@
 // src/ui/managexrp/transactions.rs
-use dioxus::prelude::*;
-use crate::context::{XrpContext, GlobalContext};
+use dioxus_native::prelude::*;
+use crate::context::XrpContext;
 use crate::channel::{ActiveView, TransactionStatus};
 use crate::utils::styles;
-use crate::utils::xrpsvg::XrpIcon;
-use crate::utils::rlusdsvg::RlusdIcon;
-use crate::utils::europsvg::EuropIcon;
 use chrono::{DateTime, Utc};
 
 #[component]
 pub fn view() -> Element {
     let xrp_ctx = use_context::<XrpContext>();
-    
     let mut xrp_modal = xrp_ctx.xrp_modal;
     let tx_state = xrp_ctx.transactions.read();
 
@@ -21,7 +17,6 @@ pub fn view() -> Element {
     ));
 
     let display_txs = sorted_txs.into_iter().take(100).collect::<Vec<_>>();
-    let is_empty = display_txs.is_empty();
 
     let on_back_click = move |_: MouseEvent| {
         xrp_modal.with_mut(|m| {
@@ -39,8 +34,10 @@ pub fn view() -> Element {
                 display: flex;
                 flex-direction: column;
                 width: 100%;
-                padding-top: 5rem;
+                align-items: center; 
+                padding-top: 4rem;
                 color: var(--text);
+                font-family: 'JetBrains Mono', monospace;
             }
             .back-button-container {
                 position: absolute;
@@ -49,81 +46,81 @@ pub fn view() -> Element {
                 cursor: pointer;
                 z-index: 10;
             }
-            .empty-state {
+            .section-label {
+                width: 100%;
+                max-width: 1500px;
+                font-size: 0.65rem;
+                color: var(--text-secondary);
+                letter-spacing: 2px;
+                border-left: 2px solid var(--accent);
+                padding-left: 8px;
+                margin-bottom: 1rem;
+            }
+            .tx-table {
                 display: flex;
                 flex-direction: column;
-                align-items: center;
-                justify-content: center;
-                height: 100%; 
-                color: var(--text-secondary);
+                width: 100%;
+                max-width: 1500px; /* STRICT MAX WIDTH */
+                min-width: 1500px; /
+                border: 1px solid var(--border);
+                background: var(--bg-primary);
             }
             .table-header {
                 display: flex;
                 flex-direction: row;
-                background-color: var(--bg-secondary);
-                padding: 10px 5px;
+                background-color: var(--bg-grid);
                 border-bottom: 1px solid var(--border);
-                font-weight: bold;
-                color: var(--text);
-                font-size: 0.85rem;
-                font-family: monospace;
+                font-weight: 600;
+                color: var(--text-secondary);
+                font-size: 0.6rem;
             }
             .table-body {
                 display: flex;
                 flex-direction: column;
-                overflow-y: auto;
-                flex: 1;
-                width: 100%;
             }
             .table-row {
                 display: flex;
                 flex-direction: row;
-                padding: 10px 5px;
                 align-items: center;
                 border-bottom: 1px solid var(--bg-faint);
-                font-size: 0.8rem;
-                font-family: monospace;
-                color: var(--text);
             }
-            .col { padding: 0 4px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-            .c-tx-id { width: 12%; }
-            .c-type { width: 8%; }
-            .c-status { width: 8%; }
-            .c-price { width: 8%; }
-            .c-amount { width: 8%; }
-            .c-currency { width: 10%; display: flex; align-items: center; gap: 4px; }
-            .c-fee { width: 6%; }
-            .c-flags { width: 6%; }
-            .c-receiver { width: 11%; }
-            .c-sender { width: 11%; }
-            .c-date { width: 12%; text-align: right; }
+            .col { 
+                flex: 1; /* All columns share the 900px equally */
+                padding: 10px 8px;
+                overflow: hidden; 
+                white-space: nowrap; 
+                text-overflow: ellipsis;
+                border-right: 1px solid var(--bg-faint);
+                font-size: 0.7rem;
+            }
+            .col:last-child { border-right: none; }
+            .c-type { text-transform: uppercase; }
+            .c-currency { color: var(--accent); font-weight: bold; }
+            .c-date { color: var(--text-secondary); }
         "#} }
 
         div { class: "tx-container",
             div { 
                 class: "back-button-container",
                 onclick: on_back_click,
-                // Use var(--text) so the arrow changes color with theme
-                styles::previous_icon_button { text_color: "#fff".to_string() }
+                styles::previous_icon_button { text_color: "var(--text)".to_string() }
             }
 
-            if is_empty {
-                div { class: "empty-state",
-                    h2 { "No XRP transactions yet" }
-                }
-            } else {
+            div { class: "section-label", "NETWORK_LOG // XRPL_TRANSACTIONS" }
+
+            div { class: "tx-table",
                 div { class: "table-header",
-                    div { class: "col c-tx-id", "Tx ID" }
-                    div { class: "col c-type", "Type" }
-                    div { class: "col c-status", "Status" }
-                    div { class: "col c-price", "Price" }
-                    div { class: "col c-amount", "Amount" }
-                    div { class: "col c-currency", "Asset" }
-                    div { class: "col c-fee", "Fee" }
-                    div { class: "col c-flags", "Flags" }
-                    div { class: "col c-receiver", "Receiver" }
-                    div { class: "col c-sender", "Sender" }
-                    div { class: "col c-date", "Date" }
+                    div { class: "col", "TX_ID" }
+                    div { class: "col", "TYPE" }
+                    div { class: "col", "STATUS" }
+                    div { class: "col", "PRICE" }
+                    div { class: "col", "AMOUNT" }
+                    div { class: "col", "ASSET" }
+                    div { class: "col", "FEE" }
+                    div { class: "col", "FLAGS" }
+                    div { class: "col", "RECV" }
+                    div { class: "col", "SEND" }
+                    div { class: "col c-date", "DATE" }
                 }
 
                 div { class: "table-body",
@@ -165,60 +162,38 @@ fn TransactionRow(
     sender: String,
     timestamp: String
 ) -> Element {
-    let global = use_context::<GlobalContext>();
-    let (is_dark, _, _) = global.theme_user.read().clone();
-    
-    // Use var(--bg-faint) for zebra striping instead of hardcoded #111
     let bg_color = if index % 2 == 0 { "transparent" } else { "var(--bg-faint)" };
     
-    let short_id = if tx_id.len() > 15 { format!("{}...", &tx_id[..15]) } else { tx_id.clone() };
-    let truncate_addr = |addr: &str| {
-        if addr.len() > 15 { format!("{}...", &addr[..15]) } else { addr.to_string() }
-    };
-
-    // Keep these specific semantic colors as they usually work on both themes
+    // Using .as_deref() to borrow the Option content instead of moving it
+    let display_flags = flags.as_deref().unwrap_or("---");
+    
     let (status_text, status_color) = match status {
-        TransactionStatus::Success => ("Success", "rgb(0, 180, 0)"), // Slightly darker green for light mode readability
-        TransactionStatus::Failed => ("Failed", "rgb(220, 40, 40)"),
-        TransactionStatus::Pending => ("Pending", "rgb(220, 160, 0)"),
-        TransactionStatus::Cancelled => ("Cancelled", "var(--text-secondary)"),
+        TransactionStatus::Success => ("OK", "var(--status-ok)"),
+        TransactionStatus::Failed => ("FAIL", "var(--status-warn)"),
+        TransactionStatus::Pending => ("WAIT", "var(--accent)"),
+        TransactionStatus::Cancelled => ("VOID", "var(--text-secondary)"),
     };
 
-    let display_price = if execution_price.is_empty() || execution_price == "0" { "—" } else { &execution_price };
-    let display_amount = if amount.is_empty() { "—" } else { &amount };
-    let display_fee = if fee.is_empty() { "—" } else { &fee };
-    let display_flags = flags.as_deref().filter(|s| !s.is_empty()).unwrap_or("—");
+    let short_id = if tx_id.len() > 8 { format!("{}..", &tx_id[..8]) } else { tx_id.clone() };
+    let truncate_addr = |addr: &str| {
+        if addr.len() > 8 { format!("{}..", &addr[..8]) } else { addr.to_string() }
+    };
 
     rsx! {
         div { 
             class: "table-row",
             style: "background-color: {bg_color};",
 
-            div { class: "col c-tx-id", title: "{tx_id}", "{short_id}" }
+            div { class: "col", title: "{tx_id}", "{short_id}" }
             div { class: "col c-type", "{order_type}" }
-            div { class: "col c-status", style: "color: {status_color}", "{status_text}" }
-            div { class: "col c-price", "{display_price}" }
-            div { class: "col c-amount", "{display_amount}" }
-            
-            div { class: "col c-currency",
-                if currency == "XRP" {
-                    XrpIcon { dark: is_dark }
-                    span { "{currency}" }
-                } else if currency == "RLUSD" {
-                    RlusdIcon {}
-                    span { "RLUSD" }
-                } else if currency == "EUROP" {
-                    EuropIcon {}
-                    span { "EUROP" }
-                } else {
-                    span { "{currency}" }
-                }
-            }
-
-            div { class: "col c-fee", "{display_fee}" }
-            div { class: "col c-flags", "{display_flags}" }
-            div { class: "col c-receiver", title: "{receiver}", "{truncate_addr(&receiver)}" }
-            div { class: "col c-sender", title: "{sender}", "{truncate_addr(&sender)}" }
+            div { class: "col", style: "color: {status_color}", "{status_text}" }
+            div { class: "col", "{execution_price}" }
+            div { class: "col", "{amount}" }
+            div { class: "col c-currency", "{currency}" }
+            div { class: "col", "{fee}" }
+            div { class: "col", "{display_flags}" }
+            div { class: "col", title: "{receiver}", "{truncate_addr(&receiver)}" }
+            div { class: "col", title: "{sender}", "{truncate_addr(&sender)}" }
             div { class: "col c-date", "{timestamp}" }
         }
     }
