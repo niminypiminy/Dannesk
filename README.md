@@ -27,7 +27,6 @@ All keys, transactions, and cryptographic operations are handled directly on the
 - Non-custodial key management
 - AES-256 encrypted key storage with passphrase protection
 - Cold storage–friendly wallet architecture
-- Built entirely in **Rust**
 
 ---
 
