@@ -4,16 +4,6 @@ use crate::utils::json_storage;
 use tokio::sync::mpsc;
 
 pub fn load_wallets(commands_tx: mpsc::Sender<WSCommand>) {
-    // Load settings from settings.json
-    match json_storage::read_json::<Value>("settings.json") {
-        Ok(json) => {
-            let name = json["saved_name"].as_str().unwrap_or("anonymous").to_string();
-            let hide_balance = json["hide_balance"].as_bool().unwrap_or(false);
-            let _ = CHANNEL.theme_user_tx.send((true, name.clone(), hide_balance));
-        }
-        Err(_) => {}
-    }
-
     // Load XRP wallet from xrp.json
     if json_storage::get_config_path("xrp.json")
         .map(|path| path.exists())

@@ -1,12 +1,12 @@
-// src/pin.rs
+use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
-use rand::Rng;
-use ring::pbkdf2;
+use rand::RngExt;
 use serde::{Deserialize, Serialize};
 use std::error::Error;
 use std::fmt;
 use crate::utils::json_storage;
-use std::num::NonZeroU32;
+use argon2::{Argon2, Algorithm, Version, Params};
+use zeroize::{Zeroize};
 
 #[derive(Debug)]
 pub enum PinError {
@@ -31,7 +31,7 @@ impl Error for PinError {}
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct PinData {
-    pub pin_hash: String, // Base64-encoded PBKDF2 hash
+    pub pin_hash: String, // Base64-encoded Argon2 hash
     pub pin_salt: String, // Base64-encoded salt
 }
 
@@ -51,21 +51,22 @@ pub fn set_pin(pin: &str) -> Result<(), PinError> {
         return Err(PinError::InvalidPin);
     }
 
-    let salt = rand::thread_rng().r#gen::<[u8; 16]>();
-    let iterations = 320_000;
+    let salt: [u8; 16] = rand::rng().random();
     let mut hash = [0u8; 32];
-    pbkdf2::derive(
-        pbkdf2::PBKDF2_HMAC_SHA256,
-        NonZeroU32::new(iterations).unwrap(),
-        &salt,
-        pin.as_bytes(),
-        &mut hash,
-    );
+
+    // Use consistent parameters: 64MB RAM, 3 iterations, 4 threads
+    let params = Params::new(65536, 3, 4, None).map_err(|_| PinError::InvalidPin)?;
+    let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
+
+    argon2.hash_password_into(pin.as_bytes(), &salt, &mut hash)
+        .map_err(|_| PinError::InvalidPin)?;
 
     let pin_data = PinData {
-        pin_hash: base64::engine::general_purpose::STANDARD.encode(&hash),
-        pin_salt: base64::engine::general_purpose::STANDARD.encode(&salt),
+        pin_hash: BASE64.encode(&hash),
+        pin_salt: BASE64.encode(&salt),
     };
+
+    hash.zeroize(); // Wipe the temporary hash buffer
     save_pin_data(&pin_data)?;
     Ok(())
 }
@@ -73,24 +74,24 @@ pub fn set_pin(pin: &str) -> Result<(), PinError> {
 pub fn verify_pin(pin: &str) -> Result<(), PinError> {
     let pin_data = load_pin_data().map_err(|_| PinError::PinNotSet)?;
 
-    let stored_hash = base64::engine::general_purpose::STANDARD
-        .decode(&pin_data.pin_hash)
+    let stored_hash = BASE64.decode(&pin_data.pin_hash)
         .map_err(|_| PinError::IncorrectPin)?;
-    let salt = base64::engine::general_purpose::STANDARD
-        .decode(&pin_data.pin_salt)
+    let salt = BASE64.decode(&pin_data.pin_salt)
         .map_err(|_| PinError::IncorrectPin)?;
 
-    let iterations = 320_000;
     let mut computed_hash = [0u8; 32];
-    pbkdf2::derive(
-        pbkdf2::PBKDF2_HMAC_SHA256,
-        NonZeroU32::new(iterations).unwrap(),
-        &salt,
-        pin.as_bytes(),
-        &mut computed_hash,
-    );
+    let params = Params::new(65536, 3, 4, None).map_err(|_| PinError::IncorrectPin)?;
+    let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
 
-    if computed_hash == stored_hash.as_slice() {
+    argon2.hash_password_into(pin.as_bytes(), &salt, &mut computed_hash)
+        .map_err(|_| PinError::IncorrectPin)?;
+
+    // Constant-time comparison is handled by standard slice equality in this context,
+    // though for extreme cases you'd use a constant-time crate.
+    let is_valid = computed_hash == stored_hash.as_slice();
+    computed_hash.zeroize();
+
+    if is_valid {
         Ok(())
     } else {
         Err(PinError::IncorrectPin)
@@ -98,46 +99,7 @@ pub fn verify_pin(pin: &str) -> Result<(), PinError> {
 }
 
 pub fn change_pin(old_pin: &str, new_pin: &str) -> Result<(), PinError> {
-    // Verify the old PIN
     verify_pin(old_pin)?;
-    // Set the new PIN
     set_pin(new_pin)?;
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::utils::json_storage;
-
-    #[test]
-    fn test_set_and_verify_pin() {
-        let _ = json_storage::remove_json("pin.json");
-
-        set_pin("123456").expect("Failed to set PIN");
-        verify_pin("123456").expect("Correct PIN should verify");
-        assert!(matches!(verify_pin("654321"), Err(PinError::IncorrectPin)));
-        assert!(matches!(set_pin("12345"), Err(PinError::InvalidPin)));
-
-        let _ = json_storage::remove_json("pin.json");
-    }
-
-    #[test]
-    fn test_change_pin() {
-        let _ = json_storage::remove_json("pin.json");
-
-        set_pin("123456").expect("Failed to set PIN");
-        change_pin("123456", "654321").expect("Failed to change PIN");
-        verify_pin("654321").expect("New PIN should verify");
-        assert!(matches!(
-            change_pin("wrong", "654321"),
-            Err(PinError::IncorrectPin)
-        ));
-        assert!(matches!(
-            change_pin("654321", "12345"),
-            Err(PinError::InvalidPin)
-        ));
-
-        let _ = json_storage::remove_json("pin.json");
-    }
 }

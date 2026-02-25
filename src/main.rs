@@ -1,15 +1,19 @@
-#![cfg_attr(windows, windows_subsystem = "windows")]
+//#![cfg_attr(windows, windows_subsystem = "windows")]
 
-const VERSION: &str = "0.5.0";
+const VERSION: &str = "0.2.0";
 
 
-use dioxus::prelude::*;
+use dioxus_native::prelude::*;
 use winit::dpi::LogicalSize;
-use winit::window::{WindowAttributes, Icon};
+use winit::window::WindowAttributes;
 use std::any::Any;
+use winit_core::icon::Icon;
 use tokio::sync::mpsc;
 use tokio::runtime::Builder;
 use std::sync::OnceLock;
+#[cfg(target_os = "windows")]
+use winit::icon::{RgbaIcon};
+
 
 mod ui;
 mod channel;
@@ -49,19 +53,18 @@ enum AppState {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    #[cfg(target_os = "macos")]
-    unsafe { std::env::set_var("WGPU_BACKEND", "metal"); }
+
 
     #[cfg(target_os = "windows")]
     unsafe { std::env::set_var("WGPU_BACKEND", "vulkan"); }
 
     #[cfg(target_os = "linux")]
     unsafe { std::env::set_var("WGPU_BACKEND", "vulkan"); }
+    // Moves rustls and WGPU setup into startup.rs
+    startup::init_globals();
 
     println!("Starting main - before init_startup");
-    // We don't call init_startup() here anymore because it requires the runtime handle
     
-    // LINUX ICON FIX — ONLY RUNS ON LINUX
     #[cfg(target_os = "linux")]
     apply_linux_icon_and_desktop_entry();
 
@@ -72,84 +75,91 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let handle = runtime.handle().clone();
     
-    // NOW we call init_startup with the handle so it runs in the background
+    // Calls the function in startup.rs
     init_startup(&handle);
-    println!("init_startup (async) triggered");
 
     let (commands_tx, commands_rx) = mpsc::channel::<WSCommand>(100);
     let (exchange_shutdown_tx, exchange_shutdown_rx) = mpsc::channel::<()>(1);
     let (crypto_shutdown_tx, crypto_shutdown_rx) = mpsc::channel::<()>(1);
 
     let _ = UI_COMMANDS_TX.set(commands_tx.clone());
-    println!("UI_COMMANDS_TX set");
 
     let mut join_handles: Vec<tokio::task::JoinHandle<()>> = vec![];
 
-    // Always spawn websockets so the app launches regardless of connection
-    println!("Spawning exchange websocket");
     let exchange_handle = handle.spawn(async move {
-        println!("Exchange websocket task started");
         if let Err(_e) = run_exchange_websocket(exchange_shutdown_rx).await {
             println!("Exchange websocket error: {:?}", _e);
         }
-        println!("Exchange websocket task ended");
     });
     join_handles.push(exchange_handle);
 
-    let commands_rx_clone = commands_rx;
-    println!("Spawning crypto websocket");
     let crypto_handle = handle.spawn(async move {
-        println!("Crypto websocket task started");
-        if let Err(_e) = run_crypto_websocket(commands_rx_clone, crypto_shutdown_rx).await {
-            println!("Crypto websocket error: {:?}", _e);
+        if let Err(_e) = run_crypto_websocket(commands_rx, crypto_shutdown_rx).await {
+            // Error handling here
         }
-        println!("Crypto websocket task ended");
     });
     join_handles.push(crypto_handle);
     
     let tx_clone = commands_tx.clone();
-    println!("Spawning wallet load");
     let wallet_handle = handle.spawn_blocking(move || {
-        println!("Wallet load task started");
         wallet::load_wallets(tx_clone); 
-        println!("Wallet load task ended");
     });
     join_handles.push(wallet_handle);
 
-    #[cfg(not(target_os = "linux"))]
+    
+    #[cfg(target_os = "windows")]
+let window_icon = {
     let icon_data = load_icon()?;
-    #[cfg(not(target_os = "linux"))]
-    let window_icon = Some(Icon::from_rgba(icon_data.rgba, icon_data.width, icon_data.height)?);
+    let rgba_icon = RgbaIcon::new(icon_data.rgba, icon_data.width, icon_data.height)?;
+    Some(Icon::from(rgba_icon))
+};
+
     #[cfg(target_os = "linux")]
     let window_icon: Option<Icon> = None;
 
     #[cfg(target_os = "windows")]
     let default_size = LogicalSize::new(960.0, 720.0);
-    #[cfg(any(target_os = "macos", target_os = "linux"))]
-    let default_size = LogicalSize::new(1200.0, 900.0);
+    #[cfg(target_os = "linux")]
+    let default_size = LogicalSize::new(1100.0, 800.0);
 
-    let window_attr = WindowAttributes::default()
+       #[cfg(target_os = "linux")]  //linux needs mut
+    let mut window_attr = WindowAttributes::default()
         .with_title("Dannesk")
-        .with_inner_size(default_size)
+        .with_surface_size(default_size)
         .with_resizable(true)
         .with_window_icon(window_icon);
 
-    #[cfg(target_os = "linux")]
-    {
-        let session_type = std::env::var("XDG_SESSION_TYPE").unwrap_or_default();
-        if session_type == "wayland" {
-            use winit::platform::wayland::WindowAttributesExtWayland;
-            window_attr = window_attr.with_name("dannesk", "dannesk");
-        } else {
-            use winit::platform::x11::WindowAttributesExtX11;
-            window_attr = window_attr.with_name("dannesk", "dannesk");
-        }
-    }
+    #[cfg(target_os = "windows")] //windows doesn't need mut
+    let window_attr = WindowAttributes::default()
+        .with_title("Dannesk")
+        .with_surface_size(default_size)
+        .with_resizable(true)
+        .with_window_icon(window_icon);
 
+
+   #[cfg(target_os = "linux")]
+{
+    use winit_core::window::PlatformWindowAttributes; // needed for the dyn trait
+    use winit_wayland::WindowAttributesWayland;
+    use winit_x11::WindowAttributesX11;
+
+    let session_type = std::env::var("XDG_SESSION_TYPE").unwrap_or_default();
+
+    let platform_attr: Box<dyn PlatformWindowAttributes> = if session_type == "wayland" {
+        // Wayland: general = app_id (matches .desktop filename)
+        Box::new(WindowAttributesWayland::default().with_name("dannesk", "dannesk"))
+    } else {
+        // X11: general = class (matches your StartupWMClass=Dannesk), instance = lowercase
+        Box::new(WindowAttributesX11::default().with_name("Dannesk", "dannesk"))
+    };
+
+    window_attr = window_attr.with_platform_attributes(platform_attr);
+}
     println!("Launching Dioxus app");
     dioxus_native::launch_cfg(App, vec![], vec![Box::new(window_attr) as Box<dyn Any>]);
     println!("Dioxus app exited");
 
+    // shutdown logic
     handle.block_on(async {
         println!("Sending websocket shutdown signals.");
         let _ = exchange_shutdown_tx.send(()).await;
@@ -188,8 +198,6 @@ fn App() -> Element {
 
     let theme_css = if is_dark { DARK_CSS } else { LIGHT_CSS };
 
-    let zoom = if cfg!(target_os = "windows") { "zoom: 0.8;" } else { "" };
-
     rsx! {
         style { "body {{ margin: 0; padding: 0; }} {theme_css}" }
         // 1. OUTER WRAPPER: Always 100vh, holds the background colors/classes.
@@ -198,11 +206,7 @@ fn App() -> Element {
             class: if is_dark { "dark" }, 
             style: "display: flex; flex-direction: column; height: 100vh; width: 100%; overflow: hidden;",
 
-            // 2. INNER CONTENT WRAPPER: This is where the zoom lives.
-            // margin: auto ensures the zoomed content fills the parent available space.
-            div {
-                style: "display: flex; flex-direction: column; flex: 1; width: 100%; margin: auto; {zoom}",
-
+            
 
             match current_view {
                 AppState::UpdatePrompt => rsx! { UpdatePrompt {} },
@@ -212,7 +216,7 @@ fn App() -> Element {
                 AppState::Dashboard => rsx! {
                     ui::dashboard::render_dashboard {}
                 }
-            }
+            
         }
         }
     }

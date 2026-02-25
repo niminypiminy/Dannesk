@@ -1,34 +1,49 @@
 use crate::channel::CHANNEL;
 use reqwest::Client;
 use serde::Deserialize;
+use std::time::Duration;
 
-// Define a struct to deserialize the version JSON
 #[derive(Deserialize, Clone)]
 struct VersionResponse {
     version: String,
 }
 
+/// One-time global initializations (Crypto, Environment Variables)
+pub fn init_globals() {
+    // 1. Initialize Crypto Provider
+    rustls::crypto::ring::default_provider()
+        .install_default()
+        .expect("Failed to install rustls crypto provider");
+
+    // 2. Set WGPU Backends based on OS
+    #[cfg(target_os = "macos")]
+    unsafe { std::env::set_var("WGPU_BACKEND", "metal"); }
+
+    #[cfg(any(target_os = "windows", target_os = "linux"))]
+    unsafe { std::env::set_var("WGPU_BACKEND", "vulkan"); }
+}
+
+/// Background tasks that require a running Tokio handle
 pub fn init_startup(handle: &tokio::runtime::Handle) {
     let handle_clone = handle.clone();
     
-    // Spawn the fetch so it doesn't block main()
     handle_clone.spawn(async move {
-        // You might want to add a timeout here so it doesn't hang forever
-        match tokio::time::timeout(std::time::Duration::from_secs(5), fetch_version()).await {
+        match tokio::time::timeout(Duration::from_secs(5), fetch_version()).await {
             Ok(Ok(data)) => {
                 let _ = CHANNEL.version_tx.send(Some(data.version));
             }
             _ => {
-                // If it times out or fails, we send None (Offline mode)
                 let _ = CHANNEL.version_tx.send(None);
             }
         }
     });
 }
 
-// Fetch the version and URLs from the remote URL
 async fn fetch_version() -> Result<VersionResponse, reqwest::Error> {
-    let client = Client::new();
+    let client = Client::builder()
+        .timeout(Duration::from_secs(5))
+        .build()?;
+        
     let response = client
         .get("https://dannesk.com/version.json")
         .send()

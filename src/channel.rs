@@ -1,4 +1,4 @@
-// channel.rs (updated with settings_dropdown channels)
+// channel.rs 
 use tokio::sync::watch;
 use std::collections::HashMap;
 use once_cell::sync::Lazy;
@@ -20,20 +20,6 @@ pub enum Tab {
 pub struct ProgressState {
     pub progress: f32,   
     pub message: String,  
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Default)] // Add Default here
-pub enum SettingsView {
-    #[default] // Mark Name as the starting point
-    Name,
-    Security,
-    Network,
-}
-
-#[derive(Debug, Clone, Default)]
-pub struct SettingsState {
-    pub view_type: SettingsView,
-    pub last_view: Option<SettingsView>, // None means settings is closed
 }
 
 //xrp, euro and rlusd token related structs
@@ -233,8 +219,8 @@ pub struct Channel {
     pub rates_rx: watch::Receiver<HashMap<String, f32>>,
     pub selected_tab_tx: watch::Sender<Tab>,
     pub selected_tab_rx: watch::Receiver<Tab>,
-    pub theme_user_tx: watch::Sender<(bool, String, bool)>,
-    pub theme_user_rx: watch::Receiver<(bool, String, bool)>,
+    pub theme_user_tx: watch::Sender<(bool, bool)>,
+    pub theme_user_rx: watch::Receiver<(bool, bool)>,
     pub progress_tx: watch::Sender<Option<ProgressState>>,
     pub progress_rx: watch::Receiver<Option<ProgressState>>,
     pub version_tx: watch::Sender<Option<String>>,
@@ -243,8 +229,6 @@ pub struct Channel {
     pub exchange_ws_status_rx: watch::Receiver<bool>,
     pub crypto_ws_status_tx: watch::Sender<bool>,
     pub crypto_ws_status_rx: watch::Receiver<bool>, 
-    pub settings_modal_tx: watch::Sender<SettingsState>,
-    pub settings_modal_rx: watch::Receiver<SettingsState>,
 
     //rlusd channels
     pub rlusd_tx: watch::Sender<(f64, bool, Option<f64>)>,
@@ -286,14 +270,13 @@ impl Channel {
     pub fn new() -> Self {
 
         //global related
-        let (theme_user_tx, theme_user_rx) = watch::channel((true, "anonymous".to_string(), false));
+        let (theme_user_tx, theme_user_rx) = watch::channel((true, false));
         let (rates_tx, rates_rx) = watch::channel(HashMap::new());
         let (selected_tab_tx, selected_tab_rx) = watch::channel(Tab::Balance);
         let (progress_tx, progress_rx) = watch::channel(None);
         let (version_tx, version_rx) = watch::channel(None);
         let (exchange_ws_status_tx, exchange_ws_status_rx) = watch::channel(false);
         let (crypto_ws_status_tx, crypto_ws_status_rx) = watch::channel(false);
-        let (settings_modal_tx, settings_modal_rx) = watch::channel(SettingsState::default());
 
         
 
@@ -337,8 +320,6 @@ impl Channel {
             exchange_ws_status_rx,
             crypto_ws_status_tx,
             crypto_ws_status_rx,
-            settings_modal_tx,
-            settings_modal_rx,
           
             //xrp, euro and rlusd related
             rlusd_tx,

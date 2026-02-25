@@ -1,16 +1,16 @@
 // src/context.rs
-use dioxus::prelude::*;
+use dioxus_native::prelude::*;
 use std::collections::HashMap;
 use tokio::sync::watch; // watch::Receiver
 use tokio::sync::mpsc; // mpsc::Sender
 use crate::channel::{CHANNEL, Tab, ProgressState, SignTradeState, XRPWalletProcessState, 
-    BTCWalletProcessState, TransactionState, BTCSignTransactionState, SignTransactionState, XRPModalState, SettingsState, BTCModalState, BTCTransactionState, WSCommand};
+    BTCWalletProcessState, TransactionState, BTCSignTransactionState, SignTransactionState, XRPModalState, BTCModalState, BTCTransactionState, WSCommand};
 
 // --- Define Context Structs (Bundles of Signals) ---
 
 #[derive(Clone)]
 pub struct GlobalContext {
-    pub theme_user: Signal<(bool, String, bool)>,
+    pub theme_user: Signal<(bool, bool)>,
     pub rates: Signal<HashMap<String, f32>>,
     pub selected_tab: Signal<Tab>,
     pub progress: Signal<Option<ProgressState>>,
@@ -18,7 +18,6 @@ pub struct GlobalContext {
     pub exchange_ws_status: Signal<bool>,
     pub crypto_ws_status: Signal<bool>,
     pub ws_tx: mpsc::Sender<WSCommand>, 
-    pub settings_modal: Signal<SettingsState>,
 
 }
 
@@ -65,7 +64,6 @@ pub fn setup_contexts(ws_tx: mpsc::Sender<WSCommand>) {
         exchange_ws_status: use_signal(|| CHANNEL.exchange_ws_status_rx.borrow().clone()),
         crypto_ws_status: use_signal(|| CHANNEL.crypto_ws_status_rx.borrow().clone()),
         ws_tx, // NEW: Add here (no clone needed, as it's passed by value)
-        settings_modal: use_signal(|| CHANNEL.settings_modal_rx.borrow().clone()),
 
     };
 use_context_provider(|| global.clone());
@@ -79,7 +77,6 @@ use_context_provider(|| global.clone());
     subscribe_to_channel(global.version, CHANNEL.version_rx.clone());
     subscribe_to_channel(global.exchange_ws_status, CHANNEL.exchange_ws_status_rx.clone());
     subscribe_to_channel(global.crypto_ws_status, CHANNEL.crypto_ws_status_rx.clone());
-    subscribe_to_channel(global.settings_modal, CHANNEL.settings_modal_rx.clone());
 
 
     // XRP Context 
