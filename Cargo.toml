@@ -1,37 +1,49 @@
 [package]
 name = "Dannesk"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 
 [dependencies]
-dioxus = { version = "0.7.2"}
-dioxus-native = "0.7.2"
-winit = "0.30"
+dioxus-native = { git = "https://github.com/DioxusLabs/blitz", branch = "main", features = ["prelude", "autofocus"] }
+winit = "0.31.0-beta.2"
+winit-core = "0.31.0-beta.2"
 xrpl-rust = "1.0.0"
 ripple-address-codec = "0.1.1"
 rippled_binary_codec = "0.0.5"
-chrono = "0.4.38"
-serde = { version = "1.0.210", features = ["derive"] }
+chrono = "0.4.43"
+serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.132"
-tokio = { version = "1.40.0", features = ["full"] }
-tokio-tungstenite = { version = "0.24.0", features = ["rustls-tls-native-roots"] }
-futures-util = "0.3.31"  # For StreamExt and SinkExt
-uuid = { version = "1.10", features = ["v4"] }
-zeroize = { version = "1.8.1", features = ["derive", "serde"] }
-once_cell = "1.20.2"
-bitcoin = "0.32.6" 
-secp256k1 = "0.31.0" 
-bip39 = "2.0.0"
-ring = "0.17.8"
+tokio = { version = "1.49.0", features = ["full"] }
+tokio-tungstenite = { version = "0.28.0", features = ["rustls-tls-native-roots"] }
+futures-util = "0.3.32"  # For StreamExt and SinkExt
+uuid = { version = "1.21", features = ["v4"] }
+zeroize = { version = "1.8.2", features = ["derive", "serde"] }
+once_cell = "1.21.3"
+bitcoin = "0.32.8" 
+secp256k1 = "0.31.1" 
+bip39 = "2.2.2"
 aes-gcm = "0.10.3"
-rand = "0.8.5"
+rand = "0.10.0"
 base64 = "0.22.1"
+argon2 = "0.5.3"
 dirs = "6.0.0"
-reqwest = { version = "0.12.8", features = ["json"] } 
-tempfile = "3.23.0"
+reqwest = { version = "0.13.2", default-features = false, features = ["json", "rustls-no-provider"] }
 critical-section = { version = "1.1.1", features = ["std"] }
 qrcode = "0.14.1"
 image = { version = "0.25.6", default-features = false } 
+mimalloc = { version = "0.1.48", optional = true }
+rustls = { version = "0.23", default-features = false, features = ["ring"] }
+
+[features]
+default = ["mimalloc"]
+mimalloc = ["dep:mimalloc"]
+
+[target.'cfg(not(target_os = "linux"))'.dependencies]
+arboard = "3.6.1"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+winit-x11 = "0.31.0-beta.2"
+winit-wayland = "0.31.0-beta.2"
 arboard = { version = "3.6.1", features = ["wayland-data-control"] }
 
 [profile.release]
@@ -42,6 +54,6 @@ panic = "abort"
 opt-level = "z"       
 
 
-[build-dependencies]
-winres = "0.1" 
+[target.'cfg(windows)'.build-dependencies]
+winres = "0.1"
 
