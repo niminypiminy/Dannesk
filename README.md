@@ -27,7 +27,7 @@ Dannesk is a native, non-custodial DeFi wallet for Bitcoin and XRP. Built with R
 
 ## Installation
 
-Download the latest release for your platform (Linux and Windows supported):
+Download the latest release (Linux and Windows supported):
 
 👉 https://dannesk.com
 
