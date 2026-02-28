@@ -16,7 +16,7 @@ Dannesk is a native, non-custodial DeFi wallet for Bitcoin and XRP. Built with R
 
 ## 🛠 Tech Stack
 
-- **Core:** Rust, Tokio, Axum. Watch Cbannels.
+- **Core:** Rust, Tokio, Axum. Watch Channels.
 - **UI:** Dioxus + Blitz (GPU-rendered via wgpu).
 - **Security:** AES, Argon2id & `zeroize`.
 
