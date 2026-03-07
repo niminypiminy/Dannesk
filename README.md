@@ -9,21 +9,10 @@ Dannesk is a native, non-custodial DeFi wallet for Bitcoin and XRP. Built with R
 
 ## ✨ Features
 
-- **Multi-Chain:** Import or Create wallets for Bitcoin (SegWit) and XRPL. Entropy: 24 words, optional 25th. 
-- **DEX Trading:** Trade RLUSD, EUROP, and more on the native XRPL CLOB.
-- **25th Word:** BIP39 25th-word passphrase support. 
-- **Key Management:** Choose whether keys remain on device. When keys are on device they are encrypted via AES-256-GCM. One can remove encrypted key anytime by clicking delete_key.   
-
-## 🛠 Tech Stack
-
-- **Core:** Rust, Tokio, Axum. Watch Channels.
-- **UI:** Dioxus + Blitz (GPU-rendered via wgpu).
-- **Security:** AES, Argon2id & `zeroize`.
-
-## 🛤 Roadmap
-
-- [ ] **BTC Collateral:** Native Bitcoin-backed DeFi workflows.
-- [ ] **Adding More Tokens:** Prioritizing stablecoins.
+- **Multi-Chain:** Users may create a new wallet or import and existing wallet for Bitcoin (SegWit) and XRPL. 
+- **DEX Trading:** Users may swap XRP, RLUSD, EUROP, XSGD on XRPL's native centralized limit order book (CLOB). 
+- **BIP39 Passphrase:** Sometimes referred to as the 25th word, users can choose a passphrase for added security. This may also be used to create an infinite number of wallets from one seed. 
+- **Key Management:** Upon import or create, keys are encrypted client-side with AES-256-GCM. One can remove the encrypted key anytime by clicking delete_key.   
 
 ## Installation
 
