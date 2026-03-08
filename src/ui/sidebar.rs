@@ -1,6 +1,7 @@
 use dioxus_native::prelude::*;
 use crate::context::GlobalContext;
-use crate::channel::CHANNEL;
+use crate::channel::{CHANNEL, SideBarView};
+
 
 #[component]
 fn CliIndicator(label: String, is_active: bool) -> Element {
@@ -63,6 +64,44 @@ pub fn render_balance_toggle() -> Element {
             CliIndicator { 
                 label: label.to_string(), 
                 is_active: is_visible 
+            }
+        }
+    }
+}
+
+pub fn render_pin_button() -> Element {
+    let global = use_context::<GlobalContext>();
+    let sidebar_view = *global.sidebar_view.read();
+    let is_active = sidebar_view == SideBarView::ChangePin;
+
+    rsx! {
+        button {
+            style: base_button_style(),
+            onclick: move |_| {
+                let _ = CHANNEL.sidebar_view_tx.send(SideBarView::ChangePin);
+            },
+            CliIndicator { 
+                label: "PIN".to_string(), 
+                is_active 
+            }
+        }
+    }
+}
+
+pub fn render_rates_button() -> Element {
+    let global = use_context::<GlobalContext>();
+    let sidebar_view = *global.sidebar_view.read();
+    let is_active = sidebar_view == SideBarView::ExchangeRates;
+
+    rsx! {
+        button {
+            style: base_button_style(),
+            onclick: move |_| {
+                let _ = CHANNEL.sidebar_view_tx.send(SideBarView::ExchangeRates);
+            },
+            CliIndicator { 
+                label: "RATES".to_string(), 
+                is_active 
             }
         }
     }

@@ -14,6 +14,9 @@ pub mod create_seed_layout;
 pub mod receive_layout;
 pub mod balance_layout;
 pub mod market_order_form;
+pub mod reserves;
+pub mod xrp;
+pub mod bitcoin;
 
 pub use formatting::add_commas;
 pub use formatting::format_token_amount;

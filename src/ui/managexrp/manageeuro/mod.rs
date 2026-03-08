@@ -65,6 +65,7 @@ pub fn render_manage_euro() -> Element {
             seed_string,
             b39,
             wallet_addr_clone,
+            "EUROP".to_string(),
             global.ws_tx.clone(),
         ));
 
@@ -78,9 +79,9 @@ pub fn render_manage_euro() -> Element {
 
     rsx! {
         render_token_enable {
-            symbol: "EURO".to_string(),
+            symbol: "EUROP".to_string(),
             reserve_info,
-            enable_btn_text: "ENABLE_EURO".to_string(),
+            enable_btn_text: "ENABLE_EUROP".to_string(),
             has_token: has_euro,
             input_mode,
             passphrase_val,

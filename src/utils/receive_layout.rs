@@ -1,7 +1,7 @@
 // src/utils/receive_layout.rs
 use dioxus_native::prelude::*;
 use crate::utils::styles::terminal_action;
-use qrcode::QrCode;
+use qrcode::{QrCode, types::Color};
 use arboard::Clipboard;
 
 #[component]
@@ -12,20 +12,27 @@ pub fn ReceiveAddressLayout(
     is_dark: bool,
     on_back: EventHandler<MouseEvent>,
 ) -> Element {
-    // Memoize QR generation to avoid expensive re-renders
-    let qr_uri = use_memo(use_reactive((&address, &is_dark), move |(addr, dark)| {
+    // Fast vector QR code (Vello/Blitz renders instantly)
+    let qr_modules = use_memo(use_reactive(&address, move |addr| {
+        if addr == "No Address" {
+            return (0u32, vec![]);
+        }
         let code = QrCode::new(addr.as_bytes()).unwrap();
-        let color = if dark { "#FFFFFF" } else { "#000000" };
-        
-        let svg_str = code.render::<qrcode::render::svg::Color>()
-            .min_dimensions(200, 200)
-            .dark_color(qrcode::render::svg::Color(color)) 
-            .light_color(qrcode::render::svg::Color("transparent"))
-            .quiet_zone(false) 
-            .build();
-
-        format!("data:image/svg+xml;utf8,{}", svg_str.replace("#", "%23"))
+        let width = code.width() as u32;
+        let mut dark = Vec::with_capacity((width * width) as usize);
+        for y in 0..width {
+            for x in 0..width {
+                if code[(x as usize, y as usize)] == Color::Dark {
+                    dark.push((x, y));
+                }
+            }
+        }
+        (width, dark)
     }));
+
+    let (grid_size, dark_modules) = qr_modules.read().clone();
+    let module_color = if is_dark { "#ffffff" } else { "#000000" };
+    let bg_color = if is_dark { "#111111" } else { "#ffffff" };
 
     let copy_action = {
         let addr = address.clone();
@@ -47,10 +54,12 @@ pub fn ReceiveAddressLayout(
                 font-family: 'JetBrains Mono', monospace;
             }
             .qr-img {
-                width: 16rem;
-                height: 16rem;
-                image-rendering: pixelated;
+                width: 280px !important;      /* big & reliable */
+                height: 280px !important;
                 margin-bottom: 2rem;
+                image-rendering: crisp-edges;
+                display: block;
+                flex-shrink: 0;
             }
             .address-display {
                 color: var(--text-secondary);
@@ -72,7 +81,31 @@ pub fn ReceiveAddressLayout(
                 div { style: "font-size: 1.2rem; font-weight: bold; color: var(--text);", "{network_name}" }
             }
 
-            img { class: "qr-img", src: "{qr_uri}" }
+            // ← Big, instant, perfect QR
+            svg {
+                class: "qr-img",
+                view_box: "-4 -4 {grid_size + 8} {grid_size + 8}",
+                preserve_aspect_ratio: "xMidYMid meet",
+
+                // Quiet zone (4 modules padding, looks professional)
+                rect {
+                    x: "-4",
+                    y: "-4",
+                    width: "{grid_size + 8}",
+                    height: "{grid_size + 8}",
+                    fill: "{bg_color}",
+                }
+
+                for (x, y) in dark_modules {
+                    rect {
+                        x: "{x}",
+                        y: "{y}",
+                        width: "1",
+                        height: "1",
+                        fill: "{module_color}",
+                    }
+                }
+            }
             
             div { class: "address-display", "{address}" }
 

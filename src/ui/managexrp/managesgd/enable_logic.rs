@@ -5,9 +5,9 @@ use crate::channel::{CHANNEL, WSCommand, ProgressState, SignTransactionState};
 use zeroize::Zeroizing;
 use arboard::Clipboard;
 
-pub struct RlusdEnableLogic;
+pub struct SgdEnableLogic;
 
-impl RlusdEnableLogic {
+impl SgdEnableLogic {
     pub async fn process(
         mode: String,
         passphrase: String,      
@@ -24,7 +24,7 @@ impl RlusdEnableLogic {
 
         let _ = CHANNEL.progress_tx.send(Some(ProgressState {
             progress: 0.0,
-            message: "Enabling RLUSD Trustline...".to_string(),
+            message: "Enabling XSGD Trustline...".to_string(),
         }));
 
         // 2. Prepare Optional Data (BIP39)

@@ -94,12 +94,17 @@ pub fn render_token_layout(
                 }
 
                 // Right Side: Trustline / Metadata
-                div { class: "action-section",
+              div { class: "action-section",
                     div { class: "section-label", "LEDGER_CONSTRAINTS" }
                     div { class: "info-box",
                         div { class: "info-row",
                             span { style: "color: var(--text-secondary);", "LIMIT:" }
                             span { style: "color: var(--text); font-weight: bold;", "{limit_display}" }
+                        }
+                        // --- ADDED RESERVE ROW ---
+                        div { class: "info-row",
+                            span { style: "color: var(--text-secondary);", "RESERVE:" }
+                            span { style: "color: var(--text); font-weight: bold;", "0.20 XRP" }
                         }
                         div { class: "info-row",
                             span { style: "color: var(--text-secondary);", "STATUS:" }

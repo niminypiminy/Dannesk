@@ -1,15 +1,6 @@
 use dioxus_native::prelude::*;
-use crate::context::{GlobalContext, XrpContext, RlusdContext, EuroContext, BtcContext};
+use crate::context::{GlobalContext, XrpContext, RlusdContext, EuroContext, BtcContext, SgdContext};
 use crate::utils::add_commas;
-use crate::ui::ticker;
-use crate::ui::changepin;
-use crate::utils::styles::{terminal_action};
-
-#[derive(Clone, Copy, PartialEq)]
-enum LocalPage {
-    Dashboard,
-    SecurityUpdate,
-}
 
 #[component]
 pub fn render_balance() -> Element {
@@ -18,19 +9,8 @@ pub fn render_balance() -> Element {
     let rlusd_ctx = use_context::<RlusdContext>();
     let euro_ctx = use_context::<EuroContext>();
     let btc_ctx = use_context::<BtcContext>();
+    let sgd_ctx = use_context::<SgdContext>();
 
-    let mut current_page = use_signal(|| LocalPage::Dashboard);
-
-    // If we are on the Security page, return that view immediately
-    if current_page() == LocalPage::SecurityUpdate {
-        return rsx! {
-            changepin::view { 
-                on_back: move |_| current_page.set(LocalPage::Dashboard) 
-            }
-        };
-    }
-
-    // --- Dashboard Logic ---
     let crypto_connected = *global.crypto_ws_status.read();
     let exchange_connected = *global.exchange_ws_status.read();
     let is_connected = crypto_connected && exchange_connected;
@@ -39,15 +19,24 @@ pub fn render_balance() -> Element {
     let (rlusd_amount, _, _) = rlusd_ctx.rlusd.read().clone();
     let (euro_amount, _, _) = euro_ctx.euro.read().clone();
     let (btc_amount, _, _) = btc_ctx.bitcoin_wallet.read().clone();
+    let (sgd_amount, _, _) = sgd_ctx.sgd.read().clone();
 
     let rates = global.rates.read();
     let xrp_usd_rate: f64 = rates.get("XRP/USD").copied().unwrap_or(0.0) as f64;
     let btc_usd_rate: f64 = rates.get("BTC/USD").copied().unwrap_or(0.0) as f64;
+    let eur_usd_rate: f64 = rates.get("EUR/USD").copied().unwrap_or(0.0) as f64;
+    let sgd_usd_rate: f64 = rates.get("SGD/USD").copied().unwrap_or(0.0) as f64;
 
     let (_, hide_balance) = global.theme_user.read().clone();
 
-    let total_usd = if hide_balance { 0.0 } else {
-        (xrp_amount * xrp_usd_rate) + rlusd_amount + euro_amount + (btc_amount * btc_usd_rate)
+    let total_usd: f64 = if hide_balance {
+        0.0
+    } else {
+        (xrp_amount * xrp_usd_rate)
+            + rlusd_amount
+            + (euro_amount * eur_usd_rate)
+            + (btc_amount * btc_usd_rate)
+            + (sgd_amount * sgd_usd_rate)
     };
 
     let (int_part, frac_part) = if hide_balance {
@@ -55,7 +44,7 @@ pub fn render_balance() -> Element {
     } else {
         (
             add_commas(total_usd.floor() as i64),
-            format!(".{:02}", (total_usd.fract() * 100.0).floor() as i64)
+            format!(".{:02}", (total_usd.fract() * 100.0).floor() as i64),
         )
     };
 
@@ -64,78 +53,58 @@ pub fn render_balance() -> Element {
 
     rsx! {
         style { {r#"
-            .balance-main-container {
+            .balance-container {
                 display: flex;
                 flex-direction: column;
+                align-items: center;
+                justify-content: center;
                 width: 100%;
-                max-width: 800px;
-                margin: 0 auto;
-                justify-content:center;
-                padding-top: 8vh;
-                padding-left: 2rem;
-                padding-right: 2rem;
-                box-sizing: border-box;
-            }
-            .balance-header {
-                display: flex;
-                justify-content: space-between;
-                align-items: flex-end;
-                border-bottom: 1px solid var(--border);
-                padding-bottom: 0.5rem;
-                margin-bottom: 2rem;
-            }
-            .balance-label { 
-                font-size: 0.7rem; 
-                color: var(--text-secondary); 
-                letter-spacing: 0.25rem; 
-                font-weight: 600;
-            }
-            .balance-amount { 
-                display: flex; 
-                align-items: baseline; 
-                font-size: clamp(2.5rem, 6vw, 5rem); 
-                line-height: 1; 
-                margin: 0; 
                 font-family: 'JetBrains Mono', monospace;
+                gap: 8px;
             }
-            .currency-symbol { color: var(--text-secondary); margin-right: 0.75rem; font-size: 0.4em; }
-            .int-part { font-weight: 700; color: var(--text); }
-            .frac-part { color: var(--text-secondary); font-size: 0.4em; margin-left: 2px; }
-            .status-badge { display: flex; align-items: center; gap: 0.5rem; }
-            .status-dot { width: 6px; height: 6px; border-radius: 50%; }
-            .status-text { font-size: 0.6rem; color: var(--text-secondary); font-weight: 700; }
-            .ticker-spacing { margin-top: 2rem; width: 100%; }
-            .action-footer { margin-top: 4rem; display: flex; justify-content: flex-start; }
+            .total-amount {
+                margin: 0;
+                font-size: clamp(3.8rem, 8.5vw, 6.8rem);
+                font-weight: 800;
+                display: flex;
+                align-items: baseline;
+                line-height: 1;
+            }
+            .currency-symbol { font-size: 0.36em; color: var(--text-secondary); margin-right: 0.65rem; }
+            .int-part { color: var(--text); }
+            .frac-part { font-size: 0.36em; color: var(--text-secondary); margin-left: 6px; }
+            
+            .status-line {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                font-size: 0.68rem;
+                font-weight: 700;
+                letter-spacing: 2px;
+                color: var(--text-secondary);
+                margin-top: 10px;
+            }
+            .status-dot { width: 8px; height: 8px; border-radius: 50%; }
         "#} }
 
-        div { class: "balance-main-container",
-            div { class: "balance-header",
-                div { class: "balance-label", "BALANCE_TOTAL_USD" }
-                div { class: "status-badge",
-                    span { 
-                        class: "status-dot",
-                        style: "background: {status_color}; box-shadow: 0 0 8px {status_color};" 
-                    }
-                    span { class: "status-text", "{status_text}" }
-                }
-            }
+        div { class: "balance-container",
 
-            h1 { class: "balance-amount",
+            h1 { class: "total-amount",
                 if !hide_balance {
-                    span { class: "currency-symbol", "USD" }
-                    span { class: "int-part", "{int_part}" }
+                    span { class: "currency-symbol", "$" }
+                }
+                span { class: "int-part", "{int_part}" }
+                if !hide_balance {
                     span { class: "frac-part", "{frac_part}" }
-                } else {
-                    span { style: "color: var(--accent); letter-spacing: 0.5rem; opacity: 0.5;", "****" }
                 }
             }
 
-            div { class: "ticker-spacing",
-                ticker::render_ticker {}
-            }
-
-            div { class: "action-footer",
-                {terminal_action("SECURITY_PIN", true, move |_| current_page.set(LocalPage::SecurityUpdate))}
+            div { class: "status-line",
+                span { 
+                    class: "status-dot", 
+                    style: "background: {status_color}; box-shadow: 0 0 12px {status_color};" 
+                }
+                span { "{status_text}" }
             }
         }
     }

@@ -6,6 +6,12 @@ const TRADING_PAIRS: &[(&str, &str, &str)] = &[
     ("RLUSD/XRP", "RLUSD", "XRP"),
     ("XRP/EUROP", "XRP", "EUROP"),
     ("EUROP/XRP", "EUROP", "XRP"),
+    ("XRP/XSGD", "XRP", "XSGD"),
+    ("XSGD/XRP", "XSGD", "XRP"),
+    ("RLUSD/XSGD", "RLUSD", "XSGD"),
+    ("XSGD/RLUSD", "XSGD", "RLUSD"),
+    ("EUROP/XSGD", "EUROP", "XSGD"),
+    ("XSGD/EUROP", "XSGD", "EUROP"),
     ("RLUSD/EUROP", "RLUSD", "EUROP"),
     ("EUROP/RLUSD", "EUROP", "RLUSD"),
 ];

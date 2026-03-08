@@ -4,9 +4,10 @@
 //dependent upon src/utils/send_xrp_asset.rs 
 
 use dioxus_native::prelude::*;
-use crate::context::{XrpContext, GlobalContext, RlusdContext, EuroContext};
+use crate::context::{XrpContext, GlobalContext, RlusdContext, SgdContext, EuroContext};
 use crate::utils::{SendAsset, format_token_amount, format_usd};
 use crate::utils::send_amount_layout::SendAmountForm;
+use crate::utils::reserves::XrpBalanceInfo;
 
 #[component]
 pub fn view() -> Element {
@@ -14,7 +15,12 @@ pub fn view() -> Element {
     let global = use_context::<GlobalContext>();
     let rlusd_ctx = use_context::<RlusdContext>();
     let euro_ctx = use_context::<EuroContext>();
+    let sgd_ctx = use_context::<SgdContext>();
 
+    
+    // Pull the reserve calculation from the Parent context
+    let reserve_memo = use_context::<Memo<XrpBalanceInfo>>();
+    
     let mut sign_transaction = xrp_ctx.sign_transaction;
 
     let asset_str = sign_transaction.read().send_transaction.as_ref()
@@ -22,9 +28,17 @@ pub fn view() -> Element {
         .unwrap_or_else(|| "XRP".to_string());
 
     let asset = SendAsset::from_str(&asset_str);
-    let balance = asset.balance(&xrp_ctx, &rlusd_ctx, &euro_ctx);
     let asset_label = asset.label();
     let show_fiat = asset.has_usd_equivalent();
+
+    // === THE CRITICAL LOGIC ===
+    // If it's XRP, our "Total" for this screen is the Spendable amount from the parent.
+    // If it's a Token, we can send the whole thing (asset.balance).
+    let spendable_balance = if asset_str == "XRP" {
+        reserve_memo.read().available
+    } else {
+        asset.balance(&xrp_ctx, &rlusd_ctx, &euro_ctx, &sgd_ctx)
+    };
 
     let rates = global.rates.read();
     let exchange_rate = asset.fiat_rate_key()
@@ -39,9 +53,7 @@ pub fn view() -> Element {
 
     let mut fiat_in = use_signal(|| {
         if !show_fiat { return String::new(); }
-        let saved = sign_transaction.read().send_transaction.as_ref()
-            .and_then(|s| s.amount.clone())
-            .unwrap_or_default();
+        let saved = amount_in();
         if let Ok(v) = saved.parse::<f64>() {
             format_usd(v * exchange_rate)
         } else {
@@ -56,7 +68,7 @@ pub fn view() -> Element {
             }
         });
     };
-
+    
     let on_amount_input = move |evt: FormEvent| {
         let val = evt.value().replace(['\n', '\r'], "");
         amount_in.set(val.clone());
@@ -87,25 +99,18 @@ pub fn view() -> Element {
 
     let on_next_click = move |_| {
         let amount_str = amount_in().trim().to_string();
-        if amount_str.is_empty() {
-            sign_transaction.with_mut(|s| {
-                if let Some(ref mut tx) = s.send_transaction {
-                    tx.error = Some("ERR: AMOUNT_REQUIRED".to_string());
-                }
-            });
-            return;
-        }
-
+        
         if let Ok(amount) = amount_str.parse::<f64>() {
-            let reserve = asset.reserve_requirement();
             if amount <= 0.0 {
                 sign_transaction.with_mut(|s| {
                     if let Some(ref mut tx) = s.send_transaction {
                         tx.error = Some("ERR: MIN_VALUE_REQUIRED".to_string());
                     }
                 });
-            } else if amount > balance - reserve {
-                let err = asset.insufficient_funds_error();
+            } 
+            // GATEKEEPER: Check against our calculated spendable_balance
+            else if amount > spendable_balance {
+                let err = format!("ERR: INSUFFICIENT_FUNDS // MAX: {:.6}", spendable_balance);
                 sign_transaction.with_mut(|s| {
                     if let Some(ref mut tx) = s.send_transaction {
                         tx.error = Some(err);
@@ -131,17 +136,16 @@ pub fn view() -> Element {
 
     let current_error = sign_transaction.read().send_transaction.as_ref()
         .and_then(|s| s.error.clone());
-    let formatted_balance = format_token_amount(balance, 6);
 
-    // All UI + styles now live in utils/send_layout.rs
-   rsx! {
+    rsx! {
         SendAmountForm {
             asset_label: asset_label.to_string(),
             network_label: "XRP_MAINNET".to_string(),
             show_fiat,
             amount_in,
             fiat_in,
-            formatted_balance,
+            // We pass the spendable balance here so the UI shows exactly what is sendable.
+            formatted_balance: format_token_amount(spendable_balance, 6),
             exchange_rate,
             current_error,
             on_amount_input,

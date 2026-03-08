@@ -1,3 +1,6 @@
+//managexrp/xrpsend/step1.rs 
+//dependent upon utils/send_recipient_layout.rs 
+
 use dioxus_native::prelude::*;
 use crate::context::XrpContext;
 use crate::utils::send_recipient_layout::SendAddressForm;

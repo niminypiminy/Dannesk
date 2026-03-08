@@ -1,6 +1,5 @@
-// src/utils/balance_layout.rs
-
 use dioxus_native::prelude::*;
+use crate::utils::reserves::XrpBalanceInfo;
 
 pub fn render_balance_layout(
     asset_ticker: String,
@@ -14,6 +13,8 @@ pub fn render_balance_layout(
     receive_btn: Element,
     purge_btn: Element,
     delete_btn: Option<Element>,
+    xrp_reserve_info: Option<XrpBalanceInfo>,
+    logo: Element, 
 ) -> Element {
     rsx! {
         style { {r#"
@@ -91,7 +92,44 @@ pub fn render_balance_layout(
                     span { "{int_part}" }
                     span { style: "font-size: 0.4em; color: var(--text-secondary);", "{frac_part}" }
                 }
-                div { style: "color: var(--accent); font-size: 0.9rem;", "{formatted_raw_amount} {asset_ticker}" }
+div { 
+    style: "color: var(--accent); font-size: 0.9rem; display: flex; align-items: center; gap: 8px;", 
+    span { "{formatted_raw_amount}" }
+    div { 
+        style: "display: flex; align-items: center; height: 100%;",
+        {logo} 
+    }
+}
+                // === XRP RESERVE DISPLAY (fixed rsx syntax) ===
+                if let Some(info) = xrp_reserve_info {
+                    div {
+                        style: "margin-top: 1.25rem; padding-top: 1rem; border-top: 1px dashed var(--border); font-size: 0.85rem; display: flex; flex-direction: column; gap: 0.5rem;",
+                        if !info.is_active {
+                            div {
+                                style: "color: var(--status-warn); font-weight: 700; letter-spacing: 1px;",
+                                "INACTIVE WALLET // DEPOSIT ≥1 XRP TO ACTIVATE"
+                            }
+                        } else {
+                            div { style: "display: flex; justify-content: space-between; align-items: baseline;",
+                                div {
+                                    span { style: "color: var(--text-secondary);", "AVAILABLE // " }
+                                    span {
+                                        style: "color: var(--accent); font-weight: 800; font-size: 1.1rem;",
+                                        {format!("{:.6}", info.available)} " XRP"
+                                    }
+                                }
+                                div {
+                                    style: "font-size: 0.75rem; color: var(--text-secondary); text-align: right;",
+                                    {format!("RESERVED: {:.2} XRP ", info.total_reserve)}
+                                    span { 
+                                        style: "opacity: 0.6;", 
+                                        {format!("({:.1} base + {:.1} trustlines)", info.base_reserve, info.trustline_reserve)}
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
 
             // 2. ORGANIZED ACTION GRID

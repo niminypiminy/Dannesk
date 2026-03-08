@@ -36,6 +36,9 @@ pub fn PinScreen(on_unlock: EventHandler<()>) -> Element {
         let stored_pin = stored_pin_for_confirmation.read().clone();
 
         spawn(async move {
+            // Short breath to ensure the 6th digit renders
+            tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+            
             match current_state {
                 PinState::SetPin => {
                     stored_pin_for_confirmation.set(pin);
@@ -66,7 +69,7 @@ pub fn PinScreen(on_unlock: EventHandler<()>) -> Element {
                         error_msg.set(Some(if left == 0 { 
                             "CRITICAL: SYSTEM_LOCKOUT".into() 
                         } else { 
-                            format!("AUTH_ERR{} ATTEMPTS_REMAINING", left) 
+                            format!("AUTH_ERR: {} ATTEMPTS REMAINING", left) 
                         }));
                     }
                 }
@@ -84,12 +87,6 @@ pub fn PinScreen(on_unlock: EventHandler<()>) -> Element {
         }
     };
 
-    let title = match state() {
-        PinState::EnterPin => "SECURE_GATEWAY_v1.0",
-        PinState::SetPin => "PROTOCOL_INITIALIZATION",
-        PinState::ConfirmPin => "VERIFICATION_SEQUENCE",
-    };
-
     rsx! {
         style { {r#"
             .pin-page {
@@ -97,7 +94,7 @@ pub fn PinScreen(on_unlock: EventHandler<()>) -> Element {
                 display: flex;
                 align-items: center;
                 justify-content: center;
-                background: var(--bg-primary);
+                background: #050505;
                 font-family: 'JetBrains Mono', monospace;
                 color: var(--text);
             }
@@ -107,150 +104,151 @@ pub fn PinScreen(on_unlock: EventHandler<()>) -> Element {
                 flex-direction: column;
                 border: 1px solid var(--border);
                 background: #0a0a0a;
-                padding: 2.5rem;
-                position: relative;
-                min-width: 650px;
+                padding: 2rem;
+                width: 320px;
             }
 
-            .terminal-frame::before {
-                content: "SYS_AUTH_ID: 0x88AF";
-                position: absolute;
-                top: -10px; left: 10px;
-                background: #0a0a0a;
-                padding: 0 5px;
-                font-size: 0.55rem;
+            .terminal-header {
+                font-size: 0.7rem;
                 color: var(--accent);
+                letter-spacing: 2px;
+                margin-bottom: 2rem;
+                border-bottom: 1px solid rgba(255,255,255,0.1);
+                padding-bottom: 0.5rem;
+                text-align: center;
             }
 
             .main-layout {
                 display: flex;
+                flex-direction: column;
                 align-items: center;
-                justify-content: space-between;
-                gap: 3rem;
+                gap: 1.5rem;
             }
 
             .status-panel {
-                flex: 1;
+                width: 100%;
                 display: flex;
                 flex-direction: column;
-            }
-
-            .header-label {
-                font-size: 0.65rem;
-                color: var(--accent);
-                margin-bottom: 0.5rem;
-                letter-spacing: 2px;
-            }
-
-            .title-text {
-                font-size: 1.1rem;
-                font-weight: bold;
-                margin-bottom: 2rem;
-                color: var(--text);
+                align-items: center;
+                min-height: 80px;
             }
 
             .terminal-input-wrapper {
                 display: flex;
                 align-items: center;
-                background: var(--bg-grid);
+                background: rgba(255,255,255,0.02);
                 border: 1px solid var(--border);
-                padding: 1rem;
-                margin-bottom: 1.5rem;
+                padding: 0.8rem;
+                width: 100%;
+                box-sizing: border-box;
+                height: 54px;
             }
 
-            .bracket { color: var(--text-secondary); opacity: 0.4; font-weight: bold; font-size: 1.2rem; }
+            .loading-text {
+                flex: 1;
+                text-align: center;
+                font-size: 0.8rem;
+                color: var(--accent);
+                animation: pulse 1.5s infinite;
+            }
+
+            @keyframes pulse {
+                0% { opacity: 1; }
+                50% { opacity: 0.4; }
+                100% { opacity: 1; }
+            }
+
+            .bracket { color: var(--accent); opacity: 0.5; font-size: 1.2rem; }
             
             .pin-field {
                 flex: 1;
                 background: transparent;
                 border: none;
                 outline: none;
-                color: var(--accent);
+                color: var(--text);
                 font-family: inherit;
-                font-size: 1.5rem;
-                letter-spacing: 0.8rem;
+                font-size: 1.4rem;
+                letter-spacing: 0.5rem;
                 text-align: center;
-                padding: 0 1rem;
             }
 
             .status-msg {
-                font-size: 0.65rem;
+                margin-top: 0.5rem;
+                font-size: 0.6rem;
                 color: var(--status-warn);
-                min-height: 1.5rem;
+                min-height: 1rem;
+                text-align: center;
             }
 
             .keypad {
                 display: grid;
                 grid-template-columns: repeat(3, 1fr);
-                gap: 6px;
-                width: 260px;
+                gap: 8px;
+                width: 100%;
+                transition: opacity 0.3s ease;
+            }
+
+            .keypad.processing {
+                opacity: 0.3;
+                pointer-events: none;
             }
 
             .num-key {
-                /* FIX: Use Flex for perfect centering */
                 display: flex;
                 align-items: center;
                 justify-content: center;
-                
                 background: rgba(255, 255, 255, 0.03);
                 border: 1px solid var(--border);
                 color: var(--text);
-                height: 60px; /* Fixed height for symmetry */
-                font-size: 1.2rem;
+                height: 55px;
+                font-size: 1.1rem;
                 cursor: pointer;
-                font-family: inherit;
-                transition: background 0.1s ease;
+                transition: all 0.1s ease;
             }
 
-            .num-key:hover {
+            .num-key:active {
                 background: var(--accent);
                 color: #000;
-                border-color: var(--accent);
             }
 
             .special-key { 
-                font-size: 0.7rem; 
-                color: var(--text-secondary); 
+                font-size: 0.65rem; 
+                opacity: 0.6;
             }
         "#} }
 
         div { class: "pin-page",
             div { class: "terminal-frame",
+                div { class: "terminal-header", "SECURE_GATEWAY_v0.3" }
+
                 div { class: "main-layout",
                     div { class: "status-panel",
-                        div { class: "header-label", "TERMINAL_STATUS: AUTH_REQUIRED" }
-                        div { class: "title-text", "{title}" }
-
                         div { class: "terminal-input-wrapper",
-                            span { class: "bracket", "[" }
-                            input {
-                                class: "pin-field",
-                                r#type: "password",
-                                autofocus: true,
-                                maxlength: "6",
-                                value: "{input}",
-                                oninput: move |evt| {
-                                    let val = evt.value();
-                                    if val.len() <= 6 && val.chars().all(|c| c.is_numeric()) {
-                                        input.set(val.clone());
-                                        if val.len() == 6 { run_submit(); }
+                            span { class: "bracket", ">>" }
+                            if *is_processing.read() {
+                                span { class: "loading-text", "DECRYPTING_HASH..." }
+                            } else {
+                                input {
+                                    class: "pin-field",
+                                    r#type: "password",
+                                    autofocus: true,
+                                    value: "{input}",
+                                    oninput: move |evt| {
+                                        let val = evt.value();
+                                        if val.len() <= 6 && val.chars().all(|c| c.is_numeric()) {
+                                            input.set(val.clone());
+                                            if val.len() == 6 { run_submit(); }
+                                        }
                                     }
                                 }
                             }
-                            span { class: "bracket", "]" }
                         }
-
                         div { class: "status-msg", "{error_msg.read().clone().unwrap_or_default()}" }
-                        
-                        div { 
-                            style: "margin-top: 1rem; font-size: 0.55rem; color: #444; text-transform: uppercase;",
-                            "PROTOCOL_READY"
-                            br {}
-                            "SIGNAL_STRENGTH: GOOD"
-                        }
                     }
 
-                    div { class: "keypad",
+                    // Keypad dims and disables during Argon2 hashing
+                    div { 
+                        class: if *is_processing.read() { "keypad processing" } else { "keypad" },
                         for n in ["1", "2", "3", "4", "5", "6", "7", "8", "9"] {
                             button { 
                                 class: "num-key", 

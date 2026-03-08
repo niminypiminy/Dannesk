@@ -1,27 +1,26 @@
-//src/ui/managexrp/managerlusd/mod.rs 
+//src/ui/managexrp/managesgd/mod.rs 
 //dependent upon src/utils/enable_layout.rs 
 
 use dioxus_native::prelude::*;
-use crate::context::{RlusdContext, GlobalContext, XrpContext};
+use crate::context::{SgdContext, GlobalContext, XrpContext};
 pub mod enable_logic;
-use enable_logic::RlusdEnableLogic;
-pub mod rlusdbalance;
+use enable_logic::SgdEnableLogic;
+pub mod sgdbalance;
 use crate::utils::enable_token_layout::render_token_enable;   
 
 
 #[component]
-pub fn render_rlusd_balance() -> Element {
+pub fn render_sgd_balance() -> Element {
     let global = use_context::<GlobalContext>();
-    let rlusd_ctx = use_context::<RlusdContext>();
+    let sgd_ctx = use_context::<SgdContext>();
     let xrp_ctx = use_context::<XrpContext>();
 
     let (_, address_opt, _) = xrp_ctx.wallet_balance.read().clone();
     let wallet_address = address_opt.unwrap_or_else(|| "NULL_ADDR".to_string());
     let wallet_addr_for_ui = wallet_address.clone(); 
     
-    let (_, has_rlusd, _) = rlusd_ctx.rlusd.read().clone();
+    let (_, has_sgd, _) = sgd_ctx.sgd.read().clone();
 
-    // ── KEEP EXACTLY AS IN YOUR ORIGINAL ── (this was the only thing that broke)
     let input_mode = use_signal(|| "passphrase".to_string()); 
     let mut passphrase_val = use_signal(|| String::new());
     let mut bip39_val = use_signal(|| String::new());
@@ -60,13 +59,13 @@ pub fn render_rlusd_balance() -> Element {
         error_msg.set(None);
         let seed_string = s_words.iter().filter(|w| !w.is_empty()).map(|s| s.as_str()).collect::<Vec<_>>().join(" ");
         
-        tokio::spawn(RlusdEnableLogic::process(
+        tokio::spawn(SgdEnableLogic::process(
             mode.clone(),
             p_val,
             seed_string,
             b39,
             wallet_addr_clone,
-            "RLUSD".to_string(),
+            "XSGD".to_string(),
             global.ws_tx.clone(),
         ));
 
@@ -80,17 +79,17 @@ pub fn render_rlusd_balance() -> Element {
     // ── UI NOW EXTRACTED (one clean call) ──
     rsx! {
         render_token_enable {
-            symbol: "RLUSD".to_string(),
+            symbol: "XSGD".to_string(),
             reserve_info,
-            enable_btn_text: "ENABLE_RLUSD".to_string(),
-            has_token: has_rlusd,
+            enable_btn_text: "ENABLE_XSGD".to_string(),
+            has_token: has_sgd,
             input_mode,
             passphrase_val,
             bip39_val,
             seed_words,
             error_msg,
             on_enable: on_submit,
-            rlusdbalance::render_rlusd_balance {}
+            sgdbalance::render_sgd_balance {}
         }
     }
 }

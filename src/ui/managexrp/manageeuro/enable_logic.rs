@@ -14,6 +14,7 @@ impl EuroEnableLogic {
         mnemonic: String,        
         bip39_pass: String,      
         wallet_address: String,
+        asset: String,
         ws_tx: Sender<WSCommand>,
     ) {
         // 1. Secure inputs immediately
@@ -23,7 +24,7 @@ impl EuroEnableLogic {
 
         let _ = CHANNEL.progress_tx.send(Some(ProgressState {
             progress: 0.0,
-            message: "Enabling Euro Trustline...".to_string(),
+            message: "Enabling EUROP Trustline...".to_string(),
         }));
 
         // 2. Prepare Optional Data (BIP39)
@@ -56,11 +57,11 @@ impl EuroEnableLogic {
             seed,
             trustline_limit: Some("1000000".to_string()),
             fee: None,
-            tx_type: Some("trustset_euro".to_string()), 
+            tx_type: Some("trustset".to_string()), 
             taker_pays: None,
             taker_gets: None,
             flags: None,
-            wallet_type: None,
+            wallet_type: Some(asset),
             bip39: bip39_opt,
         };
 

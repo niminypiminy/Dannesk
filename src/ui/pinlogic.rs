@@ -1,6 +1,4 @@
-use crate::channel::{CHANNEL, ProgressState, Tab}; 
-use std::time::Duration;
-use tokio::time::sleep;
+use crate::channel::{CHANNEL, ProgressState, SideBarView}; 
 
 pub struct PinLogic;
 
@@ -19,27 +17,22 @@ impl PinLogic {
 
         match result {
             Ok(Ok(())) => {
-                // Success: Update progress bar
+                // Success
                 let _ = CHANNEL.progress_tx.send(Some(ProgressState {
                     progress: 1.0,
                     message: "PIN updated successfully!".to_string(),
                 }));
 
-                // 3. Ensure global navigation is set to Balance
-                // (The local overlay in balance.rs handles its own closing)
-                let _ = CHANNEL.selected_tab_tx.send(Tab::Balance);
+                // ← EXACTLY like XRPCreateLogic
+                let _ = CHANNEL.sidebar_view_tx.send(SideBarView::None);
             }
             _ => {
-                // Failure: Notify user
+                // Failure
                 let _ = CHANNEL.progress_tx.send(Some(ProgressState {
                     progress: 1.0,
                     message: "SIGNAL_INTERRUPT: PIN update failed.".to_string(),
                 }));
             }
         }
-        
-        // Let the user read the status message before clearing the bar
-        sleep(Duration::from_secs(2)).await;
-        let _ = CHANNEL.progress_tx.send(None);
     }
 }

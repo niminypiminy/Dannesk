@@ -1,29 +1,41 @@
-// src/ui/managexrp/xrpbalance.rs
 use dioxus_native::prelude::*;
 use crate::context::{GlobalContext, XrpContext};
 use crate::utils::add_commas;
 use crate::ui::managexrp::xrpbalance::wallet_operations::WalletOperations;
 use crate::utils::styles::terminal_action;
 use crate::utils::balance_layout::render_balance_layout;
+use crate::utils::xrp::{XrpLogo, XrpLogoWhite};
+use crate::utils::reserves::XrpBalanceInfo;
 
 pub mod wallet_operations;
 
-pub fn render_xrp_balance() -> Element {
-    let global = use_context::<GlobalContext>();
+#[component]
+pub fn render_xrp_balance() -> Element { 
+    let global = use_context::<GlobalContext>(); // <--- Added this back
     let xrp_ctx = use_context::<XrpContext>();
+
     let mut sign_tx = xrp_ctx.sign_transaction;
     let mut xrp_modal = xrp_ctx.xrp_modal;
 
     let (xrp_amount, address, key_is_deleted) = xrp_ctx.wallet_balance.read().clone();
     
-    // --- CALCULATE UI VALUES BEFORE RSX ---
+    // --- THEME CHECK ---
+    let (is_dark, hide_balance) = global.theme_user.read().clone();
+
+    let xrp_reserve_info = use_context::<Memo<XrpBalanceInfo>>();
+    
+    let xrp_logo = if is_dark {
+        rsx! { XrpLogoWhite { size: "14".to_string() } }
+    } else {
+        rsx! { XrpLogo { size: "14".to_string() } }
+    };
+
+    // --- STATUS ---
     let status_color = if key_is_deleted { "var(--status-warn)" } else { "var(--status-ok)" };
     let status_text = if key_is_deleted { "PROTECTED // KEY_OFF_DEVICE" } else { "ACTIVE // KEY_ON_DEVICE" };
-    // --------------------------------------
 
     let rates = global.rates.read();
     let xrp_usd_rate = rates.get("XRP/USD").copied().unwrap_or(0.0) as f64;
-    let (_, hide_balance) = global.theme_user.read().clone();
 
     let total_usd = xrp_amount * xrp_usd_rate;
     let (int_part, frac_part) = if hide_balance {
@@ -34,7 +46,7 @@ pub fn render_xrp_balance() -> Element {
 
     let formatted_raw_xrp = if hide_balance { "****".to_string() } else { format!("{:.6}", xrp_amount) };
 
-    // ACTIONS (Button closures)
+    // ACTIONS
     let send_btn = terminal_action("SEND", true, move |_| {
         xrp_modal.with_mut(|s| { s.last_view = Some(crate::channel::ActiveView::XRP); s.view_type = crate::channel::ActiveView::Send; });
         sign_tx.with_mut(|s| {
@@ -73,5 +85,7 @@ pub fn render_xrp_balance() -> Element {
         receive_btn,
         purge_btn,
         optional_delete_btn,
+        Some(xrp_reserve_info.read().clone()), // Use .read() here
+        xrp_logo
     )
 }

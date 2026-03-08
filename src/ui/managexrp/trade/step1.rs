@@ -27,54 +27,39 @@ pub fn view() -> Element {
     let has_selection = !selected_base().is_empty() && !selected_quote().is_empty();
 
     // --- SCALABLE RATE ENGINE ---
- let market_rate = use_memo(move || {
+let market_rate = use_memo(move || {
         let rates_data = rates_signal.read();
         
         let b_raw = selected_base();
         let q_raw = selected_quote();
         if b_raw.is_empty() || q_raw.is_empty() { return 0.0; }
 
-        // Map base asset to market ticker
+        // Explicitly map UI assets to Backend Ticker Symbols
         let base = match b_raw.as_str() {
             "RLUSD" => "USD",
             "EUROP" => "EUR",
+            "XSGD"   => "SGD", 
             _ => b_raw.as_str(),
         };
 
-        // Map quote asset to market ticker
         let quote = match q_raw.as_str() {
             "RLUSD" => "USD",
             "EUROP" => "EUR",
+            "XSGD"   => "SGD", 
             _ => q_raw.as_str(),
         };
 
         if base == quote { return 1.0; }
 
-        // Helper for lookup - formatting strings is fine here as it's scoped to the memo
-        let lookup = |a: &str, b: &str| -> Option<f64> {
-            let direct = format!("{}/{}", a, b);
-            if let Some(&rate) = rates_data.get(&direct) {
-                return Some(rate as f64);
-            }
-            let inverse = format!("{}/{}", b, a);
-            if let Some(&rate) = rates_data.get(&inverse) {
-                if rate > 0.0 { return Some(1.0 / rate as f64); }
-            }
-            None
-        };
-
-        // 1. Direct Pair
-        if let Some(rate) = lookup(base, quote) {
-            return rate;
+        // The rest of the lookup logic remains the same...
+        let direct = format!("{}/{}", base, quote);
+        if let Some(&rate) = rates_data.get(&direct) {
+            return rate as f64;
         }
 
-        // 2. Triangulation via USD
-        if base != "USD" && quote != "USD" {
-            let base_usd = lookup(base, "USD");
-            let quote_usd = lookup(quote, "USD");
-            if let (Some(b_r), Some(q_r)) = (base_usd, quote_usd) {
-                if q_r > 0.0 { return b_r / q_r; }
-            }
+        let inverse = format!("{}/{}", quote, base);
+        if let Some(&rate) = rates_data.get(&inverse) {
+            if rate > 0.0 { return 1.0 / rate as f64; }
         }
 
         0.0
