@@ -20,8 +20,6 @@ Create a new wallet or import an existing one for:
 - **Bitcoin (SegWit)**
 - **XRP Ledger**
 
-Dannesk supports standard recovery phrases for seamless wallet migration.
-
 ---
 
 ### XRPL DEX Trading
