@@ -1,11 +1,11 @@
 // channel.rs 
 use tokio::sync::watch;
 use std::collections::HashMap;
-use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
-use zeroize::Zeroizing; // Add this line!
+use zeroize::Zeroizing; 
+use std::sync::LazyLock;
 
-pub static CHANNEL: Lazy<Channel> = Lazy::new(Channel::new);
+pub static CHANNEL: LazyLock<Channel> = LazyLock::new(Channel::new);
 
 //global tabs and modals struct
 
@@ -14,6 +14,13 @@ pub enum Tab {
     Balance,
     XRP,
     BTC,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Copy)]
+pub enum SideBarView {
+    None,
+    ChangePin,
+    ExchangeRates,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -90,6 +97,7 @@ pub enum ActiveView {
     XRP,
     RLUSD,
     EURO,
+    SGD,
     Receive,
     Transactions,
     Import,
@@ -229,10 +237,16 @@ pub struct Channel {
     pub exchange_ws_status_rx: watch::Receiver<bool>,
     pub crypto_ws_status_tx: watch::Sender<bool>,
     pub crypto_ws_status_rx: watch::Receiver<bool>, 
+    pub sidebar_view_tx: watch::Sender<SideBarView >,
+    pub sidebar_view_rx: watch::Receiver<SideBarView >,
 
     //rlusd channels
     pub rlusd_tx: watch::Sender<(f64, bool, Option<f64>)>,
     pub rlusd_rx: watch::Receiver<(f64, bool, Option<f64>)>,
+
+      //sgd channels
+    pub sgd_tx: watch::Sender<(f64, bool, Option<f64>)>,
+    pub sgd_rx: watch::Receiver<(f64, bool, Option<f64>)>,
     
     //xrp channels
     pub wallet_balance_tx: watch::Sender<(f64, Option<String>, bool)>,
@@ -277,11 +291,16 @@ impl Channel {
         let (version_tx, version_rx) = watch::channel(None);
         let (exchange_ws_status_tx, exchange_ws_status_rx) = watch::channel(false);
         let (crypto_ws_status_tx, crypto_ws_status_rx) = watch::channel(false);
+        let (sidebar_view_tx, sidebar_view_rx) = watch::channel(SideBarView::None);
+
 
         
-
         //rlusd related
         let (rlusd_tx, rlusd_rx) = watch::channel((0.0, false, None));
+
+        //sgd related
+        let (sgd_tx, sgd_rx) = watch::channel((0.0, false, None));
+
 
         //xrp related
         let (wallet_balance_tx, wallet_balance_rx) = watch::channel((0.0, None, false));
@@ -320,10 +339,14 @@ impl Channel {
             exchange_ws_status_rx,
             crypto_ws_status_tx,
             crypto_ws_status_rx,
+            sidebar_view_tx,
+            sidebar_view_rx,
           
-            //xrp, euro and rlusd related
+            //xrp, euro, sgd and rlusd related
             rlusd_tx,
             rlusd_rx,
+            sgd_tx,
+            sgd_rx,
             wallet_balance_tx,
             wallet_balance_rx,
             xrp_modal_tx,

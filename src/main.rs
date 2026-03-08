@@ -1,6 +1,6 @@
 //#![cfg_attr(windows, windows_subsystem = "windows")]
 
-const VERSION: &str = "0.2.0";
+const VERSION: &str = "0.3.0";
 
 
 use dioxus_native::prelude::*;
@@ -28,8 +28,6 @@ mod context;
 mod startup; 
 #[cfg(target_os = "windows")]
 mod icon;
-#[cfg(target_os = "linux")]
-mod linux_icon_fix;
 
 use crate::theme::{DARK_CSS, LIGHT_CSS};
 use crate::ui::enterpin::PinScreen;
@@ -40,8 +38,7 @@ use crate::ui::update::UpdatePrompt;
 use crate::startup::init_startup;
 #[cfg(target_os = "windows")]
 use crate::icon::load_icon;
-#[cfg(target_os = "linux")]
-use crate::linux_icon_fix::apply_linux_icon_and_desktop_entry;
+
 
 static UI_COMMANDS_TX: OnceLock<mpsc::Sender<WSCommand>> = OnceLock::new();
 
@@ -64,9 +61,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     startup::init_globals();
 
     println!("Starting main - before init_startup");
-    
-    #[cfg(target_os = "linux")]
-    apply_linux_icon_and_desktop_entry();
 
     let runtime = Builder::new_multi_thread()
         .worker_threads(4)
@@ -139,17 +133,17 @@ let window_icon = {
 
    #[cfg(target_os = "linux")]
 {
-    use winit_core::window::PlatformWindowAttributes; // needed for the dyn trait
+    use winit_core::window::PlatformWindowAttributes; 
     use winit_wayland::WindowAttributesWayland;
     use winit_x11::WindowAttributesX11;
 
     let session_type = std::env::var("XDG_SESSION_TYPE").unwrap_or_default();
 
     let platform_attr: Box<dyn PlatformWindowAttributes> = if session_type == "wayland" {
-        // Wayland: general = app_id (matches .desktop filename)
+        // Wayland
         Box::new(WindowAttributesWayland::default().with_name("dannesk", "dannesk"))
     } else {
-        // X11: general = class (matches your StartupWMClass=Dannesk), instance = lowercase
+        // X11
         Box::new(WindowAttributesX11::default().with_name("Dannesk", "dannesk"))
     };
 
@@ -200,7 +194,7 @@ fn App() -> Element {
 
     rsx! {
         style { "body {{ margin: 0; padding: 0; }} {theme_css}" }
-        // 1. OUTER WRAPPER: Always 100vh, holds the background colors/classes.
+        // needs 100vh, width 100% or does not fill screen.
         div {
             class: "theme-root",
             class: if is_dark { "dark" }, 
