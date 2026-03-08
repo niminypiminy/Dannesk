@@ -52,7 +52,7 @@ Swaps occur **directly on-chain** with no centralized intermediary.
 
 - Private keys are **encrypted locally using AES-256-GCM** upon wallet creation or import.
 - Passphrase derivation uses **Argon2id**, an industry-standard password hashing algorithm.
-- Users may remove encrypted keys at any time.
+- Users may remove encrypted keys at any time...reverting to cold storage. 
   
 ---
 
