@@ -50,14 +50,8 @@ enum AppState {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-//better performance with vulkan drivers. Consistency in rendering. 
+//better performance with vulkan drivers. moved to startup.rs
 
-    #[cfg(target_os = "windows")]
-    unsafe { std::env::set_var("WGPU_BACKEND", "vulkan"); }
-
-    #[cfg(target_os = "linux")]
-    unsafe { std::env::set_var("WGPU_BACKEND", "vulkan"); }
-    
     startup::init_globals();
 
     println!("Starting main - before init_startup");
