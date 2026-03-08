@@ -1,26 +1,80 @@
-# Dannesk v0.2.0
+# Dannesk v0.3.0
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Made with Rust](https://img.shields.io/badge/Made%20with-Rust-orange)](https://www.rust-lang.org/)
 [![UI: Dioxus](https://img.shields.io/badge/UI-Dioxus-6f42c1)](https://dioxuslabs.com/)
 [![Graphics: wgpu](https://img.shields.io/badge/Graphics-wgpu-1f425f)](https://wgpu.rs/)
 
-Dannesk is a native, non-custodial DeFi wallet for Bitcoin and XRP. Built with Rust for high-performance & security. 
+Dannesk is a native, non-custodial DeFi wallet for **Bitcoin** and the **XRP Ledger**. The app is built in **Rust** for performance, security, and reliability.
+
+Designed as a fully **client-side DeFi wallet**, Dannesk gives users complete control over their private keys while enabling powerful trading capabilities on **XRPL’s native decentralized exchange**.
+
+---
 
 ## ✨ Features
 
-- **Multi-Chain:** Users may create a new wallet or import and existing wallet for Bitcoin (SegWit) and XRPL. 
-- **DEX Trading:** Users may swap XRP, RLUSD, EUROP, XSGD on XRPL's native centralized limit order book (CLOB). 
-- **BIP39 Passphrase:** Sometimes referred to as the 25th word, users can choose a passphrase for added security. This may also be used to create an infinite number of wallets from one seed. 
-- **Key Management:** Upon import or create, keys are encrypted client-side with AES-256-GCM. One can remove the encrypted key anytime by clicking delete_key.   
+### Multi-Chain Wallet
+
+Create a new wallet or import an existing one for:
+
+- **Bitcoin (SegWit)**
+- **XRP Ledger**
+
+Dannesk supports standard recovery phrases for seamless wallet migration.
+
+---
+
+### XRPL DEX Trading
+
+Trade directly on the **XRPL native order book (CLOB)**.
+
+Supported assets include:
+
+- **XRP**
+- **RLUSD**
+- **EUROP**
+- **XSGD**
+- **BTC**
+
+Swaps occur **directly on-chain** with no centralized intermediary.
+
+---
+
+### BIP39 Passphrase Support
+
+- Dannesk supports the optional **BIP39 passphrase** (sometimes called the *25th word*).
+- This allows for additional wallet security, and deterministic generation of multiple wallets from the same seed.
+- In layman's terms, if one acquires the 24 word key, but has no knowledge of the passphrase (25th word), they will not be able to derive the address.
+- If the passphrase is sufficiently long (e.g., 15+ characters), brute-forcing the derived wallet becomes computationally infeasible. 
+
+---
+
+### Key Management
+
+- Private keys are **encrypted locally using AES-256-GCM** upon wallet creation or import.
+- Transactions are **signed locally on the user's device**.
+- The signed transaction blob is then **broadcast to the network**.
+- Users may remove encrypted keys at any time.
+- Passphrase derivation uses **Argon2id**, an industry-standard password hashing algorithm.
+- Sensitive memory is cleared using **zeroize** after signing operations.
+
+---
 
 ## Installation
 
-Download the latest release (Linux and Windows supported):
+Download the latest release:
 
 👉 https://dannesk.com
 
+Supported platforms:
+
+- Linux (.deb) 
+- Windows (.exe) 
+
+---
+
 ## License
 
-Dannesk is licensed under the **GNU General Public License v3 (GPLv3)**.  
-See the [LICENSE](./LICENSE) file for details.
+Dannesk is licensed under the **GNU General Public License v3 (GPLv3)**.
+
+See the `LICENSE` file for details.
