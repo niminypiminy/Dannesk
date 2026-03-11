@@ -48,7 +48,7 @@ pub fn MarketOrderForm(
             .input-section { margin-bottom: 1.5rem; width: 100%; }
             .input-label-row { margin-bottom: 0.75rem; }
             .input-label { font-size: 0.65rem; color: var(--accent); border-left: 2px solid var(--accent); padding-left: 8px; }
-            .terminal-input-wrapper { display: grid; grid-template-columns: auto 1fr auto; align-items: center; background: var(--bg-grid); border: 1px solid var(--border); padding: 0.8rem 1rem; }
+            .terminal-input-wrapper { display: grid; grid-template-columns: auto 1fr auto; align-items: center; background: var(--input-bg);  border: 1px solid var(--border); padding: 0.8rem 1rem; }
             .bracket { color: var(--text-secondary); opacity: 0.4; font-weight: bold; }
             .inner-input { background: transparent; border: none; outline: none; color: var(--text); font-family: inherit; font-size: 1rem; padding: 0 1rem; width: 100%; }
             .row-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }

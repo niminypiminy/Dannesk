@@ -18,7 +18,7 @@ pub fn SendAddressForm(
             .input-section { margin-bottom: 2rem; }
             .input-label-row { display: flex; align-items: baseline; margin-bottom: 0.75rem; }
             .input-label { font-size: 0.65rem; color: var(--accent); border-left: 2px solid var(--accent); padding-left: 8px; }
-            .terminal-input-wrapper { display: flex; align-items: center; background: var(--bg-grid); border: 1px solid var(--border); padding: 0.8rem 1rem; }
+            .terminal-input-wrapper { display: flex; align-items: center; background: var(--input-bg);  border: 1px solid var(--border); padding: 0.8rem 1rem; }
             .bracket { color: var(--text-secondary); opacity: 0.4; font-weight: bold; }
             .inner-input { flex: 1; background: transparent; border: none; outline: none; color: var(--text); font-family: inherit; font-size: 1rem; padding: 0 1rem; }
             .error-box { background: rgba(239, 68, 68, 0.1); border-left: 3px solid var(--status-warn); padding: 0.75rem 1rem; margin-top: 1rem; font-size: 0.75rem; color: var(--status-warn); }

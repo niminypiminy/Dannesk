@@ -117,7 +117,6 @@ pub fn render_manage_xrp() -> Element {
                 align-items: center;
             }
             .setup-header {
-                width: 100%;
                 border-bottom: 1px solid var(--border);
                 padding-bottom: 0.5rem;
                 margin-bottom: 2rem;
@@ -162,7 +161,7 @@ pub fn render_manage_xrp() -> Element {
                 if !has_wallet {
                     div { class: "setup-container",
                         div { class: "setup-header",
-                            div { class: "setup-label", "XRP_NETWORK_INITIALIZATION" }
+                            div { class: "setup-label", "XRP_MAINNET" }
                         }
                         div { 
                             style: "display: flex; flex-direction: column; gap: 1rem; width: 100%; align-items: center;",

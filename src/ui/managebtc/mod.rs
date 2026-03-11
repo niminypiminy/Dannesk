@@ -80,7 +80,6 @@ pub fn render_manage_btc() -> Element {
                 align-items: center;
             }
             .setup-header {
-                width: 100%;
                 border-bottom: 1px solid var(--border);
                 padding-bottom: 0.5rem;
                 margin-bottom: 2rem;
@@ -122,7 +121,7 @@ pub fn render_manage_btc() -> Element {
                     // Applied matching setup container and label
                     div { class: "setup-container",
                         div { class: "setup-header",
-                            div { class: "setup-label", "BTC_NETWORK_INITIALIZATION" }
+                            div { class: "setup-label", "BTC_MAINNET" }
                         }
                         div { 
                             style: "display: flex; flex-direction: column; gap: 1rem; width: 100%; align-items: center;",

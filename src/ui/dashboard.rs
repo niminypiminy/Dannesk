@@ -1,6 +1,6 @@
 use dioxus_native::prelude::*;
 use crate::channel::{Tab, SideBarView};     
-use crate::ui::{balance, managebtc, managexrp, progressbar::ProgressBar, sidebar, ticker, changepin}; // ← added changepin
+use crate::ui::{balance, managebtc, managexrp, progressbar::ProgressBar, sidebar, ticker, networkstatus, changepin}; 
 use crate::context::GlobalContext;
 
 pub fn render_dashboard() -> Element {
@@ -29,7 +29,8 @@ pub fn render_dashboard() -> Element {
                 ",
                 sidebar::render_balance_toggle {}
                 sidebar::render_pin_button {}
-                sidebar::render_rates_button {} 
+                sidebar::render_rates_button {}
+                sidebar::render_network_button {} 
                 sidebar::render_theme_toggle {}
             }
 
@@ -40,6 +41,8 @@ pub fn render_dashboard() -> Element {
                     // ← Security takes over whole screen
                     SideBarView ::ChangePin => rsx! { changepin::view {} },
                     SideBarView::ExchangeRates => rsx! { ticker::view {} },
+                    SideBarView::NetworkStatus=> rsx! { networkstatus::view {} },
+
 
 
                     // ← Normal view

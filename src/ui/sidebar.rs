@@ -1,72 +1,27 @@
 use dioxus_native::prelude::*;
 use crate::context::GlobalContext;
 use crate::channel::{CHANNEL, SideBarView};
-
-
-#[component]
-fn CliIndicator(label: String, is_active: bool) -> Element {
-    let bracket_color = "var(--text-secondary)";
-    let symbol = if is_active { ":" } else { "." };
-    let symbol_color = if is_active { "var(--accent)" } else { "var(--text-secondary)" };
-
-    rsx! {
-        span {
-            style: "font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; font-weight: 700; letter-spacing: 1px;",
-            span { style: "color: {bracket_color}; opacity: 0.4;", "[" }
-            span { style: "color: {symbol_color};", "{symbol}" }
-            span { style: "color: var(--text); padding: 0 4px;", "{label}" }
-            span { style: "color: {symbol_color};", "{symbol}" }
-            span { style: "color: {bracket_color}; opacity: 0.4;", "]" }
-        }
-    }
-}
-
-fn base_button_style() -> String {
-    "background: transparent; border: none; cursor: pointer; padding: 6px; display: flex; align-items: center;".to_string()
-}
+use crate::utils::styles::terminal_action;
 
 pub fn render_theme_toggle() -> Element {
     let global = use_context::<GlobalContext>();
-    // Pull current state from the signal
     let (is_dark, hide_balance) = global.theme_user.read().clone();
-    
     let label = if is_dark { "MODE_DRK" } else { "MODE_LGT" };
 
-    rsx! {
-        button {
-            style: base_button_style(),
-            // Push update to Channel Sender instead of manually setting Signal
-            onclick: move |_| {
-                let _ = CHANNEL.theme_user_tx.send((!is_dark, hide_balance));
-            },
-            CliIndicator { 
-                label: label.to_string(), 
-                is_active: is_dark 
-            }
-        }
-    }
+    terminal_action(label, is_dark, move |_| {
+        let _ = CHANNEL.theme_user_tx.send((!is_dark, hide_balance));
+    })
 }
 
 pub fn render_balance_toggle() -> Element {
     let global = use_context::<GlobalContext>();
     let (is_dark, hide_balance) = global.theme_user.read().clone();
-    
     let is_visible = !hide_balance;
     let label = if is_visible { "HIDE" } else { "REVEAL" };
 
-    rsx! {
-        button {
-            style: base_button_style(),
-            // Push update to Channel Sender
-            onclick: move |_| {
-                let _ = CHANNEL.theme_user_tx.send((is_dark, !hide_balance));
-            },
-            CliIndicator { 
-                label: label.to_string(), 
-                is_active: is_visible 
-            }
-        }
-    }
+    terminal_action(label, is_visible, move |_| {
+        let _ = CHANNEL.theme_user_tx.send((is_dark, !hide_balance));
+    })
 }
 
 pub fn render_pin_button() -> Element {
@@ -74,18 +29,9 @@ pub fn render_pin_button() -> Element {
     let sidebar_view = *global.sidebar_view.read();
     let is_active = sidebar_view == SideBarView::ChangePin;
 
-    rsx! {
-        button {
-            style: base_button_style(),
-            onclick: move |_| {
-                let _ = CHANNEL.sidebar_view_tx.send(SideBarView::ChangePin);
-            },
-            CliIndicator { 
-                label: "PIN".to_string(), 
-                is_active 
-            }
-        }
-    }
+    terminal_action("PIN", is_active, move |_| {
+        let _ = CHANNEL.sidebar_view_tx.send(SideBarView::ChangePin);
+    })
 }
 
 pub fn render_rates_button() -> Element {
@@ -93,16 +39,17 @@ pub fn render_rates_button() -> Element {
     let sidebar_view = *global.sidebar_view.read();
     let is_active = sidebar_view == SideBarView::ExchangeRates;
 
-    rsx! {
-        button {
-            style: base_button_style(),
-            onclick: move |_| {
-                let _ = CHANNEL.sidebar_view_tx.send(SideBarView::ExchangeRates);
-            },
-            CliIndicator { 
-                label: "RATES".to_string(), 
-                is_active 
-            }
-        }
-    }
+    terminal_action("RATES", is_active, move |_| {
+        let _ = CHANNEL.sidebar_view_tx.send(SideBarView::ExchangeRates);
+    })
+}
+
+pub fn render_network_button() -> Element {
+    let global = use_context::<GlobalContext>();
+    let sidebar_view = *global.sidebar_view.read();
+    let is_active = sidebar_view == SideBarView::NetworkStatus;
+
+    terminal_action("NETWORK", is_active, move |_| {
+        let _ = CHANNEL.sidebar_view_tx.send(SideBarView::NetworkStatus);
+    })
 }

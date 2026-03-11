@@ -21,8 +21,8 @@ pub fn view() -> Element {
     let (btc_amount, address, key_is_deleted) = btc_ctx.bitcoin_wallet.read().clone();
     
     // --- CALCULATE UI VALUES BEFORE LAYOUT ---
-    let status_color = if key_is_deleted { "var(--status-warn)" } else { "var(--status-ok)" };
-    let status_text = if key_is_deleted { "PROTECTED // KEY_OFF_DEVICE" } else { "ACTIVE // KEY_ON_DEVICE" };
+    let status_color = if key_is_deleted { "var(--text-secondary)" } else { "var(--text-secondary)" };
+    let status_text = if key_is_deleted { "PURGED // KEY_OFF_DEVICE" } else { "ACTIVE // KEY_ON_DEVICE" };
 
     let rates = global.rates.read();
     let btc_usd_rate = rates.get("BTC/USD").copied().unwrap_or(0.0) as f64;

@@ -11,10 +11,6 @@ pub fn render_balance() -> Element {
     let btc_ctx = use_context::<BtcContext>();
     let sgd_ctx = use_context::<SgdContext>();
 
-    let crypto_connected = *global.crypto_ws_status.read();
-    let exchange_connected = *global.exchange_ws_status.read();
-    let is_connected = crypto_connected && exchange_connected;
-
     let (xrp_amount, _, _) = xrp_ctx.wallet_balance.read().clone();
     let (rlusd_amount, _, _) = rlusd_ctx.rlusd.read().clone();
     let (euro_amount, _, _) = euro_ctx.euro.read().clone();
@@ -48,9 +44,6 @@ pub fn render_balance() -> Element {
         )
     };
 
-    let status_text = if is_connected { "CONNECTED" } else { "DISCONNECTED" };
-    let status_color = if is_connected { "var(--status-ok)" } else { "var(--status-warn)" };
-
     rsx! {
         style { {r#"
             .balance-container {
@@ -60,7 +53,15 @@ pub fn render_balance() -> Element {
                 justify-content: center;
                 width: 100%;
                 font-family: 'JetBrains Mono', monospace;
-                gap: 8px;
+                gap: 4px;
+            }
+            .balance-label {
+                font-size: 0.7rem;
+                color: var(--text-secondary);
+                opacity: 0.6;
+                letter-spacing: 1px;
+                margin-bottom: 4px;
+                text-transform: uppercase;
             }
             .total-amount {
                 margin: 0;
@@ -73,22 +74,12 @@ pub fn render_balance() -> Element {
             .currency-symbol { font-size: 0.36em; color: var(--text-secondary); margin-right: 0.65rem; }
             .int-part { color: var(--text); }
             .frac-part { font-size: 0.36em; color: var(--text-secondary); margin-left: 6px; }
-            
-            .status-line {
-                display: flex;
-                align-items: center;
-                gap: 10px;
-                font-size: 0.68rem;
-                font-weight: 700;
-                letter-spacing: 2px;
-                color: var(--text-secondary);
-                margin-top: 10px;
-            }
-            .status-dot { width: 8px; height: 8px; border-radius: 50%; }
         "#} }
 
         div { class: "balance-container",
-
+            // Added the title here to match your asset layout style
+            div { class: "balance-label", "TOTAL_VALUATION // USD" }
+            
             h1 { class: "total-amount",
                 if !hide_balance {
                     span { class: "currency-symbol", "$" }
@@ -97,14 +88,6 @@ pub fn render_balance() -> Element {
                 if !hide_balance {
                     span { class: "frac-part", "{frac_part}" }
                 }
-            }
-
-            div { class: "status-line",
-                span { 
-                    class: "status-dot", 
-                    style: "background: {status_color}; box-shadow: 0 0 12px {status_color};" 
-                }
-                span { "{status_text}" }
             }
         }
     }

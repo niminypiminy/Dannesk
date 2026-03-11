@@ -10,6 +10,7 @@ pub mod progressbar;
 pub mod managebtc;
 pub mod changepin;
 pub mod pinlogic;
+pub mod networkstatus;
 
 
 

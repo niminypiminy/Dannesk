@@ -94,7 +94,7 @@ pub fn PinScreen(on_unlock: EventHandler<()>) -> Element {
                 display: flex;
                 align-items: center;
                 justify-content: center;
-                background: #050505;
+                background: var(--bg-primary); /* Swapped from #050505 */
                 font-family: 'JetBrains Mono', monospace;
                 color: var(--text);
             }
@@ -103,17 +103,18 @@ pub fn PinScreen(on_unlock: EventHandler<()>) -> Element {
                 display: flex;
                 flex-direction: column;
                 border: 1px solid var(--border);
-                background: #0a0a0a;
+                background: var(--bg-secondary); /* Swapped from #0a0a0a */
                 padding: 2rem;
                 width: 320px;
+                box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); /* Added slight shadow for depth on light bg */
             }
 
             .terminal-header {
                 font-size: 0.7rem;
-                color: var(--accent);
+                color: var(--text-accent); /* Changed from --accent for better contrast */
                 letter-spacing: 2px;
                 margin-bottom: 2rem;
-                border-bottom: 1px solid rgba(255,255,255,0.1);
+                border-bottom: 1px solid var(--border); /* Swapped from rgba white */
                 padding-bottom: 0.5rem;
                 text-align: center;
             }
@@ -136,7 +137,7 @@ pub fn PinScreen(on_unlock: EventHandler<()>) -> Element {
             .terminal-input-wrapper {
                 display: flex;
                 align-items: center;
-                background: rgba(255,255,255,0.02);
+                background: var(--input-bg); /* Swapped from rgba white */
                 border: 1px solid var(--border);
                 padding: 0.8rem;
                 width: 100%;
@@ -148,7 +149,7 @@ pub fn PinScreen(on_unlock: EventHandler<()>) -> Element {
                 flex: 1;
                 text-align: center;
                 font-size: 0.8rem;
-                color: var(--accent);
+                color: var(--text-accent);
                 animation: pulse 1.5s infinite;
             }
 
@@ -158,7 +159,12 @@ pub fn PinScreen(on_unlock: EventHandler<()>) -> Element {
                 100% { opacity: 1; }
             }
 
-            .bracket { color: var(--accent); opacity: 0.5; font-size: 1.2rem; }
+            .bracket { 
+                color: var(--text-secondary); 
+                opacity: 0.4; 
+                font-size: 1.2rem; 
+                font-weight: bold;
+            }
             
             .pin-field {
                 flex: 1;
@@ -197,7 +203,7 @@ pub fn PinScreen(on_unlock: EventHandler<()>) -> Element {
                 display: flex;
                 align-items: center;
                 justify-content: center;
-                background: rgba(255, 255, 255, 0.03);
+                background: var(--bg-faint); /* Swapped from rgba white */
                 border: 1px solid var(--border);
                 color: var(--text);
                 height: 55px;
@@ -207,19 +213,19 @@ pub fn PinScreen(on_unlock: EventHandler<()>) -> Element {
             }
 
             .num-key:active {
-                background: var(--accent);
-                color: #000;
+                background: var(--btn-active); /* Dark slate active state */
+                color: var(--bg-primary); /* Inverse text color so it remains visible */
             }
 
             .special-key { 
                 font-size: 0.65rem; 
-                opacity: 0.6;
+                color: var(--text-secondary); /* Give special keys a muted look */
             }
         "#} }
 
         div { class: "pin-page",
             div { class: "terminal-frame",
-                div { class: "terminal-header", "SECURE_GATEWAY_v0.3" }
+                div { class: "terminal-header", "DANNESK v0.3.0" }
 
                 div { class: "main-layout",
                     div { class: "status-panel",
@@ -246,7 +252,6 @@ pub fn PinScreen(on_unlock: EventHandler<()>) -> Element {
                         div { class: "status-msg", "{error_msg.read().clone().unwrap_or_default()}" }
                     }
 
-                    // Keypad dims and disables during Argon2 hashing
                     div { 
                         class: if *is_processing.read() { "keypad processing" } else { "keypad" },
                         for n in ["1", "2", "3", "4", "5", "6", "7", "8", "9"] {

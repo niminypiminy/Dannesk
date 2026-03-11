@@ -73,7 +73,7 @@ pub fn nav_action(
 ) -> Element {
     let symbol = if active { ":" } else { "." };
     let symbol_color = if active { "var(--accent)" } else { "var(--text-secondary)" };
-    let label_color = if active { "var(--status-ok)" } else { "var(--text)" };
+    let label_color = if active { "var(--text-secondary)" } else { "var(--text)" };
     
     rsx! {
         button {

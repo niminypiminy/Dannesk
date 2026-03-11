@@ -31,8 +31,8 @@ pub fn render_xrp_balance() -> Element {
     };
 
     // --- STATUS ---
-    let status_color = if key_is_deleted { "var(--status-warn)" } else { "var(--status-ok)" };
-    let status_text = if key_is_deleted { "PROTECTED // KEY_OFF_DEVICE" } else { "ACTIVE // KEY_ON_DEVICE" };
+    let status_color = if key_is_deleted { "var(--text-secondary)" } else { "var(--text-secondary)" };
+    let status_text = if key_is_deleted { "PURGED // KEY_OFF_DEVICE" } else { "ACTIVE // KEY_ON_DEVICE" };
 
     let rates = global.rates.read();
     let xrp_usd_rate = rates.get("XRP/USD").copied().unwrap_or(0.0) as f64;
