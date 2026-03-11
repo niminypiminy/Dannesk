@@ -7,7 +7,7 @@
 
 Dannesk is a native, non-custodial DeFi wallet for **Bitcoin** and the **XRP Ledger**. The app is built in **Rust** for performance, security, and reliability.
 
-Designed as a fully **client-side DeFi wallet**, Dannesk gives users complete control over their private keys while enabling powerful trading capabilities on **XRPL’s native decentralized exchange**.
+The app gives users complete control over their private keys while enabling powerful trading capabilities on **XRPL’s native CLOB**.
 
 ---
 
@@ -15,16 +15,12 @@ Designed as a fully **client-side DeFi wallet**, Dannesk gives users complete co
 
 ### Multi-Chain Wallet
 
-Create a new wallet or import an existing one for:
+Users can create a new wallet or import an existing one for:
 
 - **Bitcoin (SegWit)**
 - **XRP Ledger**
 
----
-
-### XRPL DEX Trading
-
-Trade directly on the **XRPL native order book (CLOB)**.
+And make swaps on the **XRPL native order book (CLOB)**.
 
 Supported assets include:
 
