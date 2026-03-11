@@ -19,7 +19,8 @@ Users can create a new wallet or import an existing one for:
 - **Bitcoin**
 - **XRP**
 
-And make swaps on the **XRPL native order book (CLOB)**.
+Additionally, users can make swaps on the **XRPL native order book (CLOB)**.
+Swaps occur **directly on-chain** with no centralized intermediary.
 
 Supported assets include:
 
@@ -29,32 +30,21 @@ Supported assets include:
 - **XSGD**
 - **BTC**
 
-Swaps occur **directly on-chain** with no centralized intermediary.
-
 ---
 
-### BIP39 Passphrase Support
+### Security
 
 - Dannesk supports the optional BIP39 passphrase (sometimes called the 25th word).
 - This allows for enhanced wallet security and the deterministic generation of multiple wallets from the same seed.
-- The infinite derivation allows for plausible deniability, and, if the passphrase is stored in one's memory, the attack vector is susbantially increased. 
+- The infinite derivation allows for plausible deniability, while decreasing the attack vector substantially. (assuming one holds the passphrase in memory).
 - Furthermore, if the passphrase is sufficiently long (e.g., 15+ characters), brute-forcing the derived wallet from the missing 25th word becomes computationally infeasible. 
-
----
-
-### Key Management
-
-- Private keys are **encrypted locally using AES-256-GCM** upon wallet creation or import.
-- Passphrase derivation uses **Argon2id**, an award winning password hashing algorithm.
-- Users may remove encrypted keys at any time...and revert to cold storage. 
-  
----
-
-### Signing Transactions 
+- When importing or creating a wallet, private keys are by default **encrypted locally using AES-256-GCM**.
+- Passphrase derivation uses **Argon2id**. 
+- The app allows users to remove encrypted keys at any time...and revert to cold storage.
 - Transactions are **signed locally on the user's device**.
 - The signed transaction blob is then **broadcast to the network**.
 - Nothing sensitive leaves the user device.
-- And memory is cleared **zeroized** after signing operations.
+- Memory is cleared **zeroized** after signing operations.
 
 ---
 
