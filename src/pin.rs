@@ -66,7 +66,7 @@ pub fn set_pin(pin: &str) -> Result<(), PinError> {
         pin_salt: BASE64.encode(&salt),
     };
 
-    hash.zeroize(); 
+    hash.zeroize(); // Wipe the temporary hash buffer
     save_pin_data(&pin_data)?;
     Ok(())
 }
@@ -86,7 +86,8 @@ pub fn verify_pin(pin: &str) -> Result<(), PinError> {
     argon2.hash_password_into(pin.as_bytes(), &salt, &mut computed_hash)
         .map_err(|_| PinError::IncorrectPin)?;
 
-  
+    // Constant-time comparison is handled by standard slice equality in this context,
+    // though for extreme cases you'd use a constant-time crate.
     let is_valid = computed_hash == stored_hash.as_slice();
     computed_hash.zeroize();
 

@@ -21,6 +21,7 @@ pub enum SideBarView {
     None,
     ChangePin,
     ExchangeRates,
+    NetworkStatus,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -284,7 +285,7 @@ impl Channel {
     pub fn new() -> Self {
 
         //global related
-        let (theme_user_tx, theme_user_rx) = watch::channel((true, false));
+        let (theme_user_tx, theme_user_rx) = watch::channel((false, false));
         let (rates_tx, rates_rx) = watch::channel(HashMap::new());
         let (selected_tab_tx, selected_tab_rx) = watch::channel(Tab::Balance);
         let (progress_tx, progress_rx) = watch::channel(None);

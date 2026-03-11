@@ -50,7 +50,6 @@ enum AppState {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-//better performance with vulkan drivers. moved to startup.rs
 
     startup::init_globals();
 
@@ -63,7 +62,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let handle = runtime.handle().clone();
     
-    
+    // Calls the function in startup.rs
     init_startup(&handle);
 
     let (commands_tx, commands_rx) = mpsc::channel::<WSCommand>(100);
@@ -83,7 +82,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let crypto_handle = handle.spawn(async move {
         if let Err(_e) = run_crypto_websocket(commands_rx, crypto_shutdown_rx).await {
-            
+            // Error handling here
         }
     });
     join_handles.push(crypto_handle);
@@ -112,14 +111,14 @@ let window_icon = {
 
        #[cfg(target_os = "linux")]  //linux needs mut
     let mut window_attr = WindowAttributes::default()
-        .with_title("Dannesk")
+        .with_title("Dannesk v0.3.0")
         .with_surface_size(default_size)
         .with_resizable(true)
         .with_window_icon(window_icon);
 
     #[cfg(target_os = "windows")] //windows doesn't need mut
     let window_attr = WindowAttributes::default()
-        .with_title("Dannesk")
+        .with_title("Dannesk v0.3.0")
         .with_surface_size(default_size)
         .with_resizable(true)
         .with_window_icon(window_icon);
@@ -169,17 +168,18 @@ fn App() -> Element {
     let global = use_context::<GlobalContext>();
     let is_dark = global.theme_user.read().0;
     
-    // Track if the user has successfully unlocked pin
+    // Track if the user has successfully unlocked the PIN
     let mut unlocked = use_signal(|| false);
     
-    // Read the version signal directly.
+    // Read the version signal directly. This ensures that if the background
+    // fetch finishes 2 seconds after launch, this component re-renders.
     let remote_version = global.version.read();
     
-  
+    // Determine the current view
     let current_view = match remote_version.as_ref() {
         // FORCE update if version exists and doesn't match
         Some(v) if v != VERSION => AppState::UpdatePrompt,
-        
+        // Otherwise, check if we are in Dashboard or PinEntry
         _ => if *unlocked.read() { AppState::Dashboard } else { AppState::PinEntry },
     };
 
@@ -187,7 +187,7 @@ fn App() -> Element {
 
     rsx! {
         style { "body {{ margin: 0; padding: 0; }} {theme_css}" }
-        
+        // needs 100vh, width 100% or does not fill screen.
         div {
             class: "theme-root",
             class: if is_dark { "dark" }, 
