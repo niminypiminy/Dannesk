@@ -36,13 +36,13 @@ Supported assets include:
 
 - Dannesk supports the optional BIP39 passphrase (sometimes called the 25th word).
 - The 25th word allows for enhanced wallet security and the deterministic generation of multiple wallets from the same seed. 
-- When importing or creating a wallet, private keys are **encrypted locally using AES-256-GCM**.
-- We use **Argon2id** for password derivation.  
-- The app allows users to remove encrypted keys at any time...and revert to cold storage.
+- Wallet keys are encrypted and decrypted locally on the user’s device using AES-256 encryption. Only the user knows their decryption passphrase. 
+- We use **Argon2id** for key derivation.  
+- Users can remove encrypted keys with one-click. 
 - Transactions are **signed locally on the user's device**.
 - The signed transaction blob is then **broadcast to the network**.
 - Memory is cleared **zeroized** after signing operations.
-
+  
 ---
 
 ## Installation
