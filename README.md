@@ -37,25 +37,25 @@ Swaps occur **directly on-chain** with no centralized intermediary.
 ### BIP39 Passphrase Support
 
 - Dannesk supports the optional BIP39 passphrase (sometimes called the 25th word).
-- This allows for additional wallet security and the deterministic generation of multiple wallets from the same seed.
-- This means that even if a bad actor acquires the 24-word key, they would still need the 25th word to derive the wallet.
-- If the 25th word is stored only in one’s memory, the probability of an attacker obtaining both the 24 words and the passphrase is extremely low.  
-- Furthermore, if the passphrase is sufficiently long (e.g., 15+ characters), brute-forcing the derived wallet becomes computationally infeasible. 
+- This allows for enhanced wallet security and the deterministic generation of multiple wallets from the same seed.
+- The infinite derivation allows for plausible deniability, and, if the passphrase is stored in one's memory, the attack vector is susbantially increased. 
+- Furthermore, if the passphrase is sufficiently long (e.g., 15+ characters), brute-forcing the derived wallet from the missing 25th word becomes computationally infeasible. 
 
 ---
 
 ### Key Management
 
 - Private keys are **encrypted locally using AES-256-GCM** upon wallet creation or import.
-- Passphrase derivation uses **Argon2id**, an industry-standard password hashing algorithm.
-- Users may remove encrypted keys at any time...reverting to cold storage. 
+- Passphrase derivation uses **Argon2id**, an award winning password hashing algorithm.
+- Users may remove encrypted keys at any time...and revert to cold storage. 
   
 ---
 
-### Signing 
+### Signing Transactions 
 - Transactions are **signed locally on the user's device**.
 - The signed transaction blob is then **broadcast to the network**.
-- Sensitive memory is cleared using **zeroize** after signing operations.
+- Nothing sensitive leaves the user device.
+- And memory is cleared **zeroized** after signing operations.
 
 ---
 
