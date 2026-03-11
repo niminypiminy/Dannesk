@@ -6,7 +6,7 @@
 [![Graphics: wgpu](https://img.shields.io/badge/Graphics-wgpu-1f425f)](https://wgpu.rs/)
 
 Dannesk is a native, non-custodial DeFi wallet for **Bitcoin** and the **XRP Ledger**. The app gives users complete control over their private keys while enabling powerful trading capabilities on **XRPL’s native CLOB**.
-Built in Rust for security and reliability. 
+The app is built in Rust for security and reliability. 
 
 ---
 
