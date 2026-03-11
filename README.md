@@ -17,8 +17,8 @@ The app gives users complete control over their private keys while enabling powe
 
 Users can create a new wallet or import an existing one for:
 
-- **Bitcoin (SegWit)**
-- **XRP Ledger**
+- **Bitcoin**
+- **XRP**
 
 And make swaps on the **XRPL native order book (CLOB)**.
 
