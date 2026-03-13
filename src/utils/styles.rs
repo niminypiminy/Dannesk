@@ -14,7 +14,7 @@ fn CliIndicator(label: String, is_active: bool) -> Element {
 
     rsx! {
         span {
-            style: "font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; font-weight: 700; letter-spacing: 1px;",
+            style: "font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; letter-spacing: 1px;",
             span { style: "color: {bracket_color}; opacity: 0.4;", "[" }
             span { style: "color: {symbol_color};", "{symbol}" }
             span { style: "color: var(--text); padding: 0 4px;", "{label}" }
@@ -54,7 +54,7 @@ pub fn terminal_action(
             onclick: move |e| on_click(e),
             
             span {
-                style: "font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; font-weight: 700; letter-spacing: 1.5px;",
+                style: "font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; letter-spacing: 1.5px;",
                 span { style: "color: var(--text-secondary); opacity: 0.4;", "[" }
                 span { style: "color: {symbol_color};", "{symbol}" }
                 span { style: "color: var(--text); padding: 0 8px;", "{label}" }
@@ -81,7 +81,7 @@ pub fn nav_action(
             onclick: move |e| on_click(e),
             
             span {
-                style: "font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; font-weight: 700; letter-spacing: 1.5px;",
+                style: "font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; letter-spacing: 1.5px;",
                 span { style: "color: var(--text-secondary); opacity: 0.4;", "[" }
                 span { style: "color: {symbol_color};", "{symbol}" }
                 span { style: "color: {label_color}; padding: 0 8px;", "{label}" }
