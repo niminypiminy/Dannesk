@@ -105,7 +105,7 @@ let window_icon = {
     let window_icon: Option<Icon> = None;
 
     #[cfg(target_os = "windows")]
-    let default_size = LogicalSize::new(960.0, 720.0);
+    let default_size = LogicalSize::new(880.0, 640.0);
     #[cfg(target_os = "linux")]
     let default_size = LogicalSize::new(1100.0, 800.0);
 
@@ -185,15 +185,22 @@ fn App() -> Element {
 
     let theme_css = if is_dark { DARK_CSS } else { LIGHT_CSS };
 
+
+   let zoom = if cfg!(target_os = "windows") { "zoom: 0.80;" } else { "" };
+
     rsx! {
         style { "body {{ margin: 0; padding: 0; }} {theme_css}" }
-        // needs 100vh, width 100% or does not fill screen.
+        // 1. OUTER WRAPPER: Always 100vh, holds the background colors/classes.
         div {
             class: "theme-root",
-            class: if is_dark { "dark" }, 
+            class: if is_dark { "dark" },
             style: "display: flex; flex-direction: column; height: 100vh; width: 100%; overflow: hidden;",
 
-            
+            // 2. INNER CONTENT WRAPPER: This is where the zoom lives.
+            // margin: auto ensures the zoomed content fills the parent available space.
+            div {
+                style: "display: flex; flex-direction: column; flex: 1; width: 100%; margin: auto; {zoom}",
+
 
             match current_view {
                 AppState::UpdatePrompt => rsx! { UpdatePrompt {} },
@@ -203,7 +210,7 @@ fn App() -> Element {
                 AppState::Dashboard => rsx! {
                     ui::dashboard::render_dashboard {}
                 }
-            
+            }
         }
         }
     }

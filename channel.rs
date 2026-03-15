@@ -40,12 +40,12 @@ pub enum TransactionStatus {
     Cancelled,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct TransactionState {
     pub transactions: HashMap<String, TransactionData>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, PartialEq, Deserialize)]
 pub struct TransactionData {
     pub tx_id: String,          // Maps to "hash"
     pub status: TransactionStatus, // Maps to "status"
@@ -60,7 +60,7 @@ pub struct TransactionData {
     pub sender: String,        // Maps to "sender"
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub struct SignTransaction {
     pub step: u8,
     pub error: Option<String>,
@@ -69,7 +69,7 @@ pub struct SignTransaction {
     pub asset: String, // "XRP", "RLUSD", or "EURO"
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct SignTransactionState {
     pub send_transaction: Option<SignTransaction>,
 }
@@ -92,7 +92,7 @@ pub struct WSCommand {
     pub bip39: Option<Zeroizing<String>>,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Default)]
 pub enum ActiveView {
     #[default]
     XRP,
@@ -107,20 +107,20 @@ pub enum ActiveView {
     Trade,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct XRPModalState {
     pub view_type: ActiveView,
     pub last_view: Option<ActiveView>,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct XRPWalletProcessState {
     pub import_wallet: Option<XRPImport>,
     pub create_wallet: Option<XRPImport>,
 }
 
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub struct XRPImport {
     pub step: u8,
     pub seed: Option<Zeroizing<String>>, 
@@ -128,7 +128,7 @@ pub struct XRPImport {
 }
 
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub struct Trade {
     pub step: u8,
     pub base_asset: Option<String>,  //buy asset
@@ -142,28 +142,28 @@ pub struct Trade {
  
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct SignTradeState {
     pub send_trade: Option<Trade>,
 }
 
 //bitcoin related structs
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub struct BTCImport {
     pub step: u8,
     pub seed: Option<Zeroizing<String>>, 
     pub error: Option<String>,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct BTCModalState {
     pub view_type: BTCActiveView,
     pub last_view: Option<BTCActiveView>,
 
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
 pub struct BTCSignTransaction {
     pub step: u8,
     pub error: Option<String>,
@@ -173,18 +173,18 @@ pub struct BTCSignTransaction {
     pub fee: String, 
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct BTCSignTransactionState {
     pub send_transaction: Option<BTCSignTransaction>,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct BTCWalletProcessState {
     pub import_wallet: Option<BTCImport>,
     pub create_wallet: Option<BTCImport>,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Default)]
 pub enum BTCActiveView {
     #[default]
     BTC,
@@ -204,12 +204,12 @@ pub enum BitcoinTransactionStatus {
     Cancelled,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct BTCTransactionState {
     pub transactions: HashMap<String, BTCTransactionData>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, PartialEq, Deserialize)]
 pub struct BTCTransactionData {
     pub txid: String,          // Transaction ID (txid)
     pub status: BitcoinTransactionStatus, // Pending, Success, Failed, or Cancelled

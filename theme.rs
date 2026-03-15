@@ -63,8 +63,7 @@ pub const LIGHT_CSS: &str = r#"
     --btn-active: #0f172a;       /* slate-900 */
     --accent: #020617;           
     
-    /* Selection matches: selection:bg-slate-950/10 */
-    --selection: rgba(2, 6, 23, 0.1); 
+   --selection: #e2e8f0;
     
     --input-bg: #ffffff;
     --focus-ring: #cbd5e1;       /* slate-300 */

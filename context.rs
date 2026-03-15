@@ -159,12 +159,16 @@ use_context_provider(|| global.clone());
 }
 
 // Generic subscription coroutine (reuse for all channels)
-fn subscribe_to_channel<T: Clone + 'static>(mut signal: Signal<T>, rx: watch::Receiver<T>) {
+fn subscribe_to_channel<T: Clone + PartialEq + 'static>(mut signal: Signal<T>, rx: watch::Receiver<T>) {
     use_coroutine(move |_: UnboundedReceiver<()>| {
         let mut rx = rx.clone();
         async move {
             while rx.changed().await.is_ok() {
-                signal.set(rx.borrow().clone());
+                let new_val = rx.borrow().clone();
+                // ONLY set if the data is actually different
+                if new_val != *signal.read() {
+                    signal.set(new_val);
+                }
             }
         }
     });
